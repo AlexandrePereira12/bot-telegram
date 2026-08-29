@@ -1,0 +1,121 @@
+# Compose generico: a configuracao muda pelo .env, nunca pelo codigo.
+# Uma empresa por projeto Docker:
+#   docker compose -p empresa-a up -d
+# Volumes ficam nomeados por projeto, entao nada e compartilhado entre
+# empresas (planejamento/arquitetura.md, multiempresa).
+
+x-backend-image: &backend-image
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  image: traffic-bot:0.1.0
+  env_file: [.env]
+  restart: unless-stopped
+  volumes:
+    # api grava a midia enviada pelo painel; bot e worker leem na hora de
+    # enviar. Um volume so, porque o arquivo nunca sai por HTTP.
+    - media-data:/app/media
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+
+services:
+  api:
+    <<: *backend-image
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    # Porta exposta so no loopback do host: quem publica na internet e o Nginx.
+    # Configuravel porque varias empresas rodam no mesmo servidor (um projeto
+    # Docker por empresa) e uma porta fixa faria a segunda falhar ao subir.
+    ports: ["127.0.0.1:${API_LOCAL_PORT:-8000}:8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  bot:
+    <<: *backend-image
+    # Em dev roda long polling; em producao (TELEGRAM_USE_WEBHOOK=true) a API
+    # recebe os updates e este servico fica ocioso de proposito.
+    command: python -m app.bot.bot
+    # Bot e worker nao servem HTTP: o healthcheck da imagem (curl /ready) nao
+    # se aplica a eles e os marcaria como unhealthy indevidamente.
+    healthcheck: {disable: true}
+    # Limite de tentativas: instabilidade do Telegram o polling ja absorve
+    # sozinho, entao sair repetidamente significa erro de configuracao (token
+    # invalido) — que reinicio nenhum resolve. Melhor parar e deixar o log
+    # legivel do que rodar em loop infinito.
+    restart: on-failure:5
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      api: {condition: service_started}
+
+  worker:
+    <<: *backend-image
+    command: arq app.workers.tasks.WorkerSettings
+    healthcheck: {disable: true}
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    # Sem ports: o banco nunca fica exposto fora da rede do compose.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save 60 1 --appendonly no
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    image: traffic-dashboard:0.1.0
+    restart: unless-stopped
+    depends_on: [api]
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    # Porta configuravel: em maquina de dev a 80 costuma estar ocupada.
+    ports: ["${NGINX_PORT:-80}:80"]
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/proxy_params_custom.conf:/etc/nginx/proxy_params_custom.conf:ro
+    depends_on: [api, frontend]
+
+  n8n:
+    image: n8nio/n8n:latest
+    profiles: [integrations]
+    restart: unless-stopped
+    environment:
+      N8N_PORT: 5678
+      GENERIC_TIMEZONE: America/Sao_Paulo
+    ports: ["127.0.0.1:${N8N_LOCAL_PORT:-5678}:5678"]
+    volumes: ["n8n-data:/home/node/.n8n"]
+
+volumes:
+  media-data:
+  postgres-data:
+  redis-data:
+  n8n-data:
