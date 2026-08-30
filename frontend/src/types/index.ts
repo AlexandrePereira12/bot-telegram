@@ -6,6 +6,24 @@ export interface Operator {
   is_active: boolean
 }
 
+/** Visão administrativa do operador (`/operators`), separada de `Operator`
+ *  para não ampliar o que `/auth/me` devolve. */
+export interface OperatorAdmin {
+  id: number
+  email: string
+  full_name: string | null
+  role: Operator['role']
+  is_active: boolean
+  /** true enquanto o perfil que exige 2FA ainda não cadastrou o autenticador */
+  totp_pending: boolean
+  created_at: string
+}
+
+export interface OperatorCreated extends OperatorAdmin {
+  /** preenchida só quando o servidor gerou a senha; exibida uma única vez */
+  generated_password: string | null
+}
+
 export interface Overview {
   period_days: number
   users: number

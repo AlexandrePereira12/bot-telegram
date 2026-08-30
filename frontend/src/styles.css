@@ -1,15 +1,77 @@
+/* ---------------------------------------------------------------------------
+   Tokens.
+
+   O tema claro é o padrão e o escuro é a variação, não o contrário: o
+   atributo data-theme no <html> é carimbado pelo script do index.html antes
+   do bundle carregar — inclusive resolvendo o prefers-color-scheme na
+   primeira visita. Por isso não há media query de tema aqui.
+--------------------------------------------------------------------------- */
 :root {
-  --bg: #0f1115;
-  --surface: #171a21;
-  --surface-2: #1e222b;
-  --border: #2a2f3a;
-  --text: #e6e9ef;
-  --muted: #949cad;
-  --accent: #4f8cff;
-  --ok: #35c07f;
-  --warn: #e0a83c;
-  --danger: #e2564d;
-  --radius: 10px;
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --bg: #f4f1ec;
+  --surface: #fbf9f6;
+  --surface-2: #ece7df;
+  --border: #ddd5c9;
+  --border-strong: #c3b8a8;
+  --text: #241f1a;
+  --muted: #7a7268;
+
+  --accent: #1f5f6b;
+  --accent-hover: #17505b;
+  --accent-ink: #fbf9f6;
+  --accent-soft: #dfeaec;
+
+  --ok: #37704a;
+  --warn: #8f6413;
+  --danger: #a3382a;
+
+  --chart-grid: #ddd5c9;
+  --chart-axis: #7a7268;
+  --chart-1: #1f5f6b;
+  --chart-2: #a86a1c;
+
+  /* No claro quem separa os níveis é a borda; o fundo dos painéis fica quase
+     igual ao da página. No escuro é o contrário — ver bloco abaixo. */
+  --panel-border: var(--border);
+  --shadow: 0 1px 2px rgb(36 31 26 / 0.06);
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: #14120f;
+  --surface: #1d1a16;
+  --surface-2: #262119;
+  --border: #342e26;
+  --border-strong: #4a4238;
+  --text: #ece6dc;
+  --muted: #988d7f;
+
+  --accent: #63b3c2;
+  --accent-hover: #7cc4d1;
+  --accent-ink: #10201f;
+  --accent-soft: #1b3238;
+
+  --ok: #74b98a;
+  --warn: #d9a95c;
+  --danger: #e08476;
+
+  --chart-grid: #302a22;
+  --chart-axis: #988d7f;
+  --chart-1: #63b3c2;
+  --chart-2: #d9a95c;
+
+  /* No escuro o próprio fundo do painel já cria o degrau; borda por cima
+     viraria contorno duplo. */
+  --panel-border: transparent;
+  --shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+
   color-scheme: dark;
 }
 
@@ -17,12 +79,19 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -30,118 +99,240 @@ a {
   text-decoration: none;
 }
 
+a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* --- estrutura --- */
+
 .layout {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 232px 1fr;
   min-height: 100vh;
 }
 
 .sidebar {
   background: var(--surface);
   border-right: 1px solid var(--border);
-  padding: 20px 14px;
+  padding: 22px 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
 
 .brand {
-  font-weight: 700;
+  font-weight: 600;
   font-size: 15px;
-  margin-bottom: 18px;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  margin-bottom: 16px;
   padding: 0 10px;
 }
 
-.brand small {
-  display: block;
-  font-weight: 400;
-  color: var(--muted);
-  font-size: 11px;
-  margin-top: 2px;
+/* Quem está logado fica no topo, antes da navegação: é o primeiro dado que
+   se procura num painel com vários perfis de acesso. */
+.identity {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  grid-template-areas:
+    'avatar texto'
+    'perfil perfil';
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 18px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+.avatar {
+  grid-area: avatar;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.identity-text {
+  grid-area: texto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.identity-text strong {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity-text span {
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity .badge {
+  grid-area: perfil;
+  justify-self: start;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .nav-link {
-  padding: 9px 10px;
-  border-radius: 8px;
+  display: block;
+  padding: 8px 10px 8px 13px;
+  border-radius: var(--radius);
   color: var(--muted);
   font-weight: 500;
+  border-left: 3px solid transparent;
+  transition: color 0.12s, background-color 0.12s;
 }
 
 .nav-link:hover {
   background: var(--surface-2);
   color: var(--text);
+  text-decoration: none;
 }
 
+/* Item ativo marcado pela barra à esquerda, não só por um retângulo de fundo:
+   fica legível mesmo quando o mouse está sobre outro item. */
 .nav-link.active {
-  background: var(--surface-2);
   color: var(--text);
+  font-weight: 600;
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .sidebar-footer {
   margin-top: auto;
   border-top: 1px solid var(--border);
-  padding-top: 12px;
+  padding-top: 14px;
   color: var(--muted);
   font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-footer button {
+  flex: 1;
 }
 
 .content {
-  padding: 24px 28px;
+  padding: 28px 32px 48px;
   overflow-x: auto;
+  max-width: 1400px;
 }
 
+/* --- tipografia --- */
+
 h1 {
-  font-size: 20px;
-  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 2px;
+}
+
+h2 {
+  letter-spacing: -0.01em;
 }
 
 .page-sub {
   color: var(--muted);
-  margin: 0 0 20px;
+  margin: 0 0 24px;
+  font-size: 13px;
 }
+
+.muted {
+  color: var(--muted);
+}
+
+code,
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* --- indicadores --- */
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 12px;
-  margin-bottom: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 10px;
+  margin-bottom: 26px;
 }
 
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px 16px;
+  box-shadow: var(--shadow);
 }
 
 .card .label {
   color: var(--muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 12.5px;
 }
 
 .card .value {
-  font-size: 26px;
-  font-weight: 650;
-  margin-top: 6px;
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  margin-top: 4px;
 }
 
 .panel {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  padding: 18px 18px 20px;
   margin-bottom: 18px;
+  box-shadow: var(--shadow);
+  /* Tabela mais larga que a tela rola dentro do painel; sem isto ela some
+     sob a borda, sem nada indicando que há mais coluna à direita. */
+  overflow-x: auto;
 }
 
 .panel h2 {
   font-size: 14px;
-  margin: 0 0 14px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  margin: 0 0 16px;
+  color: var(--text);
 }
+
+/* --- tabelas --- */
 
 table {
   width: 100%;
@@ -151,17 +342,24 @@ table {
 th,
 td {
   text-align: left;
-  padding: 9px 10px;
+  padding: 9px 12px 9px 0;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 
 th {
   color: var(--muted);
-  font-weight: 600;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-weight: 500;
+  font-size: 12.5px;
+}
+
+thead th {
+  border-bottom-color: var(--border-strong);
+  padding-bottom: 7px;
+}
+
+tbody tr:last-child > * {
+  border-bottom: none;
 }
 
 tbody tr:hover {
@@ -170,93 +368,300 @@ tbody tr:hover {
 
 .num {
   text-align: right;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  padding-right: 0;
 }
+
+th.num {
+  font-family: var(--font-sans);
+}
+
+/* --- badges --- */
 
 .badge {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.7;
+  color: var(--muted);
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
 }
 
 .badge.ok {
   color: var(--ok);
-  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
 }
 
 .badge.warn {
   color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
 }
 
 .badge.danger {
   color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
 }
+
+/* --- controles --- */
 
 button,
 .btn {
   background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-weight: 600;
+  color: var(--accent-ink);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 14px;
+  font-family: inherit;
+  font-weight: 500;
   font-size: 13px;
+  line-height: 1.5;
   cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s;
 }
 
-button.secondary {
-  background: var(--surface-2);
+button:hover:not(:disabled),
+.btn:hover {
+  background: var(--accent-hover);
+}
+
+button.secondary,
+.btn.secondary {
+  background: transparent;
   color: var(--text);
-  border: 1px solid var(--border);
+  border-color: var(--border-strong);
+}
+
+button.secondary:hover:not(:disabled),
+.btn.secondary:hover {
+  background: var(--surface-2);
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
+}
+
+button.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 85%, black);
+}
+
+button.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 2px 4px;
+  font-size: 12.5px;
+}
+
+button.link:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+button.link.danger {
+  background: none;
+  color: var(--danger);
+}
+
+button.link.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.icon-button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Ações ficam legíveis o tempo todo e ganham cor na linha sob o cursor:
+   esconder por opacidade deixa a tabela com funções invisíveis. */
+.row-actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+.row-actions button.link {
+  color: var(--muted);
+}
+
+tr:hover .row-actions button.link {
+  color: var(--accent);
+}
+
+tr:hover .row-actions button.link.danger,
+.row-actions button.link.danger:focus-visible {
+  color: var(--danger);
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.section-head button {
+  white-space: nowrap;
+}
+
+/* --- modal --- */
+
+.modal {
+  max-width: calc(100vw - 32px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.18);
+}
+
+.modal::backdrop {
+  background: rgb(24 20 16 / 0.42);
+  backdrop-filter: blur(2px);
+}
+
+[data-theme='dark'] .modal::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.modal[open] {
+  animation: modal-in 0.14s ease-out;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal[open] {
+    animation: none;
+  }
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.modal-body {
+  padding: 16px;
+}
+
+.modal-text {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.modal-text p {
+  margin: 0 0 10px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  padding: 5px 10px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-toggle:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 input,
 select,
 textarea {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 7px 10px;
   color: var(--text);
   font-size: 13px;
   font-family: inherit;
   width: 100%;
+  transition: border-color 0.12s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.75;
 }
 
 .field {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .field label {
   display: block;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 12.5px;
   margin-bottom: 5px;
 }
 
-.login-wrap {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
+.toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
-.login-box {
-  width: 340px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
+.toolbar .field {
+  margin: 0;
+  min-width: 150px;
 }
 
 .error {
@@ -265,9 +670,46 @@ textarea {
   margin: 8px 0;
 }
 
-.muted {
-  color: var(--muted);
+/* --- login --- */
+
+.login-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  position: relative;
 }
+
+.login-wrap .theme-toggle {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+.login-box {
+  width: 360px;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--shadow);
+}
+
+.login-box h1 {
+  margin-bottom: 6px;
+}
+
+.login-brand {
+  margin: 0 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+/* --- funil --- */
 
 .funnel-row {
   display: grid;
@@ -278,24 +720,13 @@ textarea {
 }
 
 .funnel-bar {
-  height: 26px;
+  height: 24px;
   background: var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   min-width: 2px;
 }
 
-.toolbar {
-  display: flex;
-  gap: 10px;
-  align-items: flex-end;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-
-.toolbar .field {
-  margin: 0;
-  min-width: 150px;
-}
+/* --- conversas --- */
 
 .chat {
   max-height: 420px;
@@ -308,47 +739,167 @@ textarea {
 
 .bubble {
   padding: 8px 12px;
-  border-radius: 10px;
-  max-width: 70%;
-  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 72%;
   background: var(--surface-2);
   font-size: 13px;
+  line-height: 1.5;
   white-space: pre-wrap;
 }
 
 .bubble.user {
   align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-bottom-left-radius: var(--radius-sm);
 }
 
 .bubble.bot,
 .bubble.operator {
   align-self: flex-end;
+  border-bottom-right-radius: var(--radius-sm);
 }
 
 .bubble.operator {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
 }
 
 .bubble .meta {
   display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 10.5px;
   margin-top: 4px;
 }
 
+/* --- linha do tempo --- */
+
 .timeline-item {
-  border-left: 2px solid var(--border);
-  padding: 0 0 14px 14px;
+  border-left: 1px solid var(--border);
+  padding: 0 0 16px 16px;
   position: relative;
 }
 
 .timeline-item::before {
   content: '';
   position: absolute;
-  left: -5px;
-  top: 4px;
-  width: 8px;
-  height: 8px;
+  left: -4px;
+  top: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--accent);
+}
+
+/* --- gráficos --- */
+
+.recharts-cartesian-axis-tick text {
+  fill: var(--chart-axis);
+}
+
+/* --- rolagem --- */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* Muito estreito: o cabeçalho precisa caber numa linha só, senão sobram três
+   faixas antes do conteúdo. Some o que é redundante — o nome ao lado do avatar
+   e o rótulo do botão de tema, que o ícone já comunica. */
+@media (max-width: 560px) {
+  .identity-text {
+    display: none;
+  }
+
+  .toggle-label {
+    display: none;
+  }
+
+  .theme-toggle {
+    padding: 6px 9px;
+  }
+}
+
+/* --- telas estreitas --- */
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 12px 14px;
+    gap: 6px;
+  }
+
+  .brand {
+    margin: 0 auto 0 0;
+    order: 0;
+  }
+
+  /* No topo, a navegação ocupa a segunda linha inteira e os controles de
+     sessão ficam à direita da marca. */
+  .nav {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .identity {
+    order: 1;
+    margin: 0 auto 0 0;
+    grid-template-columns: 28px auto;
+    grid-template-areas: 'avatar texto';
+    padding: 6px 10px 6px 6px;
+    background: none;
+  }
+
+  .identity .badge,
+  .identity-text span {
+    display: none;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+  }
+
+  .nav-link {
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    padding: 6px 9px;
+  }
+
+  .nav-link.active {
+    border-left: none;
+    border-bottom-color: var(--accent);
+  }
+
+  .sidebar-footer {
+    order: 2;
+    margin: 0;
+    border-top: none;
+    padding-top: 0;
+    gap: 6px;
+  }
+
+  .sidebar-footer button {
+    flex: 0 0 auto;
+  }
+
+  .nav {
+    order: 3;
+  }
+
+  .content {
+    padding: 20px 16px 40px;
+  }
 }

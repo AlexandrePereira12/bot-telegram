@@ -25,3 +25,4 @@ backups/
 
 planejamento/
 .README_Bot_Trafego_Telegram-3
+*.tsbuildinfo

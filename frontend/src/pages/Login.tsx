@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import QRCode from 'qrcode'
 
+import { ThemeToggle } from '../components'
 import { confirm2FA, login, type EnrollmentPayload } from '../services/api'
 
 /** Só dígitos, no máximo 6 — impede colar aqui o segredo do autenticador. */
@@ -84,7 +85,9 @@ export default function Login() {
 
   return (
     <div className="login-wrap">
+      <ThemeToggle />
       <form className="login-box" onSubmit={onLogin}>
+        <p className="login-brand">Tráfego · Telegram</p>
         <h1>Entrar</h1>
         <p className="page-sub">Painel de tráfego e atendimento</p>
 
@@ -162,7 +165,8 @@ function Enrollment(props: EnrollmentProps) {
     QRCode.toCanvas(canvasRef.current, props.data.otpauth_uri, {
       width: 208,
       margin: 1,
-      color: { dark: '#0f1115', light: '#ffffff' },
+      // Cores fixas pelo mesmo motivo da moldura branca abaixo.
+      color: { dark: '#111111', light: '#ffffff' },
     }).catch(() => {
       /* falha no desenho: a chave manual abaixo continua servindo */
     })
@@ -170,11 +174,13 @@ function Enrollment(props: EnrollmentProps) {
 
   return (
     <div className="login-wrap">
+      <ThemeToggle />
       <form
         className="login-box"
         style={{ width: 380 }}
         onSubmit={props.onSubmit}
       >
+        <p className="login-brand">Tráfego · Telegram</p>
         <h1>Configurar acesso</h1>
         <p className="page-sub">
           Seu perfil exige verificação em duas etapas. É rápido e só acontece
@@ -192,6 +198,9 @@ function Enrollment(props: EnrollmentProps) {
         </ol>
 
         <div
+          // Branco fixo de propósito: o QR precisa de módulos escuros sobre
+          // fundo claro para ser lido. Seguir o tema aqui derrubaria o
+          // contraste que o leitor do celular espera.
           style={{
             background: '#fff',
             borderRadius: 10,

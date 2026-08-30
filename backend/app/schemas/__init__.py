@@ -83,6 +83,61 @@ class OperatorOut(ORMModel):
     is_active: bool
 
 
+# ------------------------------------------------------- operadores (admin)
+class OperatorCreate(BaseModel):
+    """Cadastro de operador pelo dashboard.
+
+    `password` e opcional de proposito: sem ela o servidor gera uma senha
+    forte e a devolve uma unica vez, igual ao `create-admin` da CLI. Isso
+    evita senha fraca escolhida no calor do cadastro.
+    """
+
+    email: EmailStr
+    full_name: str | None = Field(default=None, max_length=128)
+    role: OperatorRole
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
+class OperatorAdminOut(ORMModel):
+    """Visao administrativa do operador.
+
+    Separada de `OperatorOut` (usada em /auth/me) para nao ampliar o que a
+    rota de sessao devolve. `totp_pending` diz se o operador ainda precisa
+    cadastrar o autenticador no primeiro login.
+    """
+
+    id: int
+    email: str
+    full_name: str | None
+    role: OperatorRole
+    is_active: bool
+    totp_pending: bool
+    created_at: datetime
+
+
+class OperatorUpdate(BaseModel):
+    """Alteracao de operador pelo painel.
+
+    Todos os campos sao opcionais: o cliente manda so o que mudou. `email` e
+    `password` ficam de fora de proposito — trocar identidade ou credencial
+    de outra pessoa e outra operacao, com outro risco.
+    """
+
+    full_name: str | None = Field(default=None, max_length=128)
+    role: OperatorRole | None = None
+    is_active: bool | None = None
+
+
+class OperatorCreated(OperatorAdminOut):
+    """Resposta do cadastro.
+
+    `generated_password` so vem preenchida quando o servidor gerou a senha —
+    e essa e a unica vez que ela sai do servidor. Nunca vai para a auditoria.
+    """
+
+    generated_password: str | None = None
+
+
 # ------------------------------------------------------------------ campanhas
 class CampaignCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)

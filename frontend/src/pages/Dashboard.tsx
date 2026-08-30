@@ -11,9 +11,17 @@ import {
 
 import { Card, ErrorBox, Loading, Panel, duration, percent } from '../components'
 import { api } from '../services/api'
+import { useChartTokens } from '../theme'
 import type { Overview, TimeseriesPoint } from '../types'
 
+/** O eixo não comporta a data ISO inteira; dia/mês basta para ler a série. */
+function diaCurto(valor: string): string {
+  const [, mes, dia] = valor.split('-')
+  return mes && dia ? `${dia}/${mes}` : valor
+}
+
 export default function Dashboard() {
+  const chart = useChartTokens()
   const overview = useQuery({
     queryKey: ['overview'],
     queryFn: () => api<Overview>('/analytics/overview?days=30'),
@@ -56,21 +64,28 @@ export default function Dashboard() {
         {series.data && series.data.length > 0 && (
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={series.data}>
-              <CartesianGrid stroke="#2a2f3a" strokeDasharray="3 3" />
-              <XAxis dataKey="day" stroke="#949cad" fontSize={11} />
-              <YAxis stroke="#949cad" fontSize={11} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{
-                  background: '#171a21',
-                  border: '1px solid #2a2f3a',
-                  borderRadius: 8,
-                }}
+              <CartesianGrid stroke={chart.grid} vertical={false} />
+              <XAxis
+                dataKey="day"
+                stroke={chart.grid}
+                tick={{ fill: chart.axis, fontSize: 11 }}
+                tickLine={false}
+                tickFormatter={diaCurto}
+                minTickGap={16}
               />
+              <YAxis
+                stroke={chart.grid}
+                tick={{ fill: chart.axis, fontSize: 11 }}
+                tickLine={false}
+                allowDecimals={false}
+                width={38}
+              />
+              <Tooltip contentStyle={chart.tooltip} cursor={{ stroke: chart.grid }} />
               <Line
                 type="monotone"
                 dataKey="users"
                 name="usuários"
-                stroke="#4f8cff"
+                stroke={chart.serie1}
                 strokeWidth={2}
                 dot={false}
               />
@@ -78,7 +93,7 @@ export default function Dashboard() {
                 type="monotone"
                 dataKey="conversions"
                 name="conversões"
-                stroke="#35c07f"
+                stroke={chart.serie2}
                 strokeWidth={2}
                 dot={false}
               />

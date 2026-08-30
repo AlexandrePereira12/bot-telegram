@@ -4,6 +4,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 
 import App from './App'
+// Fontes empacotadas com o bundle: o painel é servido pelo próprio nginx e
+// não deve depender de CDN externa para renderizar com a tipografia certa.
+// Só o subset latino: os demais (cirílico, grego, vietnamita) triplicariam os
+// arquivos de fonte no dist sem uso nenhum num painel em português.
+import '@fontsource/ibm-plex-sans/latin-400.css'
+import '@fontsource/ibm-plex-sans/latin-500.css'
+import '@fontsource/ibm-plex-sans/latin-600.css'
+import '@fontsource/ibm-plex-mono/latin-400.css'
+import '@fontsource/ibm-plex-mono/latin-500.css'
 import './styles.css'
 
 const queryClient = new QueryClient({

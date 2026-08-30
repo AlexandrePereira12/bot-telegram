@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard de Tráfego</title>
+    <script>
+      // Carimba o tema antes do bundle subir. Se isto rodasse no React,
+      // toda carga piscaria no tema errado antes do primeiro render.
+      (function () {
+        try {
+          var salvo = localStorage.getItem('theme')
+          var escuro = window.matchMedia('(prefers-color-scheme: dark)').matches
+          document.documentElement.dataset.theme =
+            salvo === 'light' || salvo === 'dark' ? salvo : escuro ? 'dark' : 'light'
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

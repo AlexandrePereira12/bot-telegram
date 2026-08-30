@@ -11,7 +11,9 @@ import {
 } from 'recharts'
 
 import { Empty, ErrorBox, Loading, Panel, money, percent } from '../components'
+import { funnelLabel } from '../labels'
 import { api } from '../services/api'
+import { useChartTokens } from '../theme'
 import type { CampaignPerformance, FunnelStep, TimeseriesPoint } from '../types'
 
 const PERIODS = [7, 30, 90]
@@ -23,8 +25,15 @@ interface AdPerformance {
   conversion_rate: number
 }
 
+/** O eixo não comporta a data ISO inteira; dia/mês basta para ler a série. */
+function diaCurto(valor: string): string {
+  const [, mes, dia] = valor.split('-')
+  return mes && dia ? `${dia}/${mes}` : valor
+}
+
 export default function Analytics() {
   const [days, setDays] = useState(30)
+  const chart = useChartTokens()
 
   const campaigns = useQuery({
     queryKey: ['an-campaigns', days],
@@ -65,17 +74,33 @@ export default function Analytics() {
         {funnel.data && (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={funnel.data}>
-              <CartesianGrid stroke="#2a2f3a" strokeDasharray="3 3" />
-              <XAxis dataKey="step" stroke="#949cad" fontSize={11} />
-              <YAxis stroke="#949cad" fontSize={11} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{
-                  background: '#171a21',
-                  border: '1px solid #2a2f3a',
-                  borderRadius: 8,
-                }}
+              <CartesianGrid stroke={chart.grid} vertical={false} />
+              <XAxis
+                dataKey="step"
+                stroke={chart.grid}
+                tick={{ fill: chart.axis, fontSize: 11 }}
+                tickLine={false}
+                tickFormatter={funnelLabel}
+                interval={0}
               />
-              <Bar dataKey="count" name="usuários" fill="#4f8cff" radius={[4, 4, 0, 0]} />
+              <YAxis
+                stroke={chart.grid}
+                tick={{ fill: chart.axis, fontSize: 11 }}
+                tickLine={false}
+                allowDecimals={false}
+                width={38}
+              />
+              <Tooltip
+                contentStyle={chart.tooltip}
+                cursor={{ fill: chart.grid, fillOpacity: 0.35 }}
+              />
+              <Bar
+                dataKey="count"
+                name="usuários"
+                fill={chart.serie1}
+                radius={[3, 3, 0, 0]}
+                maxBarSize={44}
+              />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -148,22 +173,39 @@ export default function Analytics() {
         {series.data && series.data.length > 0 ? (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={series.data}>
-              <CartesianGrid stroke="#2a2f3a" strokeDasharray="3 3" />
-              <XAxis dataKey="day" stroke="#949cad" fontSize={11} />
-              <YAxis stroke="#949cad" fontSize={11} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{
-                  background: '#171a21',
-                  border: '1px solid #2a2f3a',
-                  borderRadius: 8,
-                }}
+              <CartesianGrid stroke={chart.grid} vertical={false} />
+              <XAxis
+                dataKey="day"
+                stroke={chart.grid}
+                tick={{ fill: chart.axis, fontSize: 11 }}
+                tickLine={false}
+                tickFormatter={diaCurto}
+                minTickGap={16}
               />
-              <Bar dataKey="users" name="usuários" fill="#4f8cff" radius={[4, 4, 0, 0]} />
+              <YAxis
+                stroke={chart.grid}
+                tick={{ fill: chart.axis, fontSize: 11 }}
+                tickLine={false}
+                allowDecimals={false}
+                width={38}
+              />
+              <Tooltip
+                contentStyle={chart.tooltip}
+                cursor={{ fill: chart.grid, fillOpacity: 0.35 }}
+              />
+              <Bar
+                dataKey="users"
+                name="usuários"
+                fill={chart.serie1}
+                radius={[3, 3, 0, 0]}
+                maxBarSize={28}
+              />
               <Bar
                 dataKey="conversions"
                 name="conversões"
-                fill="#35c07f"
-                radius={[4, 4, 0, 0]}
+                fill={chart.serie2}
+                radius={[3, 3, 0, 0]}
+                maxBarSize={28}
               />
             </BarChart>
           </ResponsiveContainer>

@@ -5,6 +5,10 @@ WORKDIR /app
 ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
+# playwright é dependência de desenvolvimento (só o e2e usa) e seu postinstall
+# baixaria browsers que a imagem não roda — e que nem têm build para musl.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
 COPY package.json ./
 RUN npm install
 

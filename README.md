@@ -154,6 +154,19 @@ eram constantes, um teste varria o módulo garantindo que nenhuma prometia ganho
 passaram a ser editáveis pelo painel, esse teste deixaria de cobrir o que importa — então a checagem
 virou validação de escrita: texto com promessa de resultado é recusado na API, apontando o termo.
 
+**Excluir usuário é a exceção, desativar é a regra.** As chaves estrangeiras para
+`operators` são `ON DELETE SET NULL`: apagar alguém que já trabalhou no sistema tiraria, em silêncio,
+o autor de linhas da auditoria e o remetente de mensagens enviadas. Por isso o painel só exclui em
+definitivo quem ainda não produziu histórico; o resto é desativado, o que corta o acesso na hora e
+preserva o rastro. Nenhuma operação pode deixar a instalação sem administrador ativo, e ninguém
+altera o próprio perfil ou acesso pelo painel.
+
+**O cadastro de usuários pelo painel não elimina a CLI — depende dela.** A rota
+exige um ADMIN autenticado, então o primeiro administrador de uma instalação continua vindo do
+`create-admin`. Um caminho de cadastro sem autenticação seria justamente a porta que essa tela
+deveria proteger. A senha pode ser gerada pelo servidor e aparece uma única vez na resposta; a
+auditoria registra quem criou quem, com qual perfil — nunca a senha.
+
 **O papel do operador é relido do banco a cada requisição.** O claim do JWT serve para a interface
 decidir o que mostrar; ele não autoriza nada sozinho. Desativar um operador tem efeito imediato, sem
 esperar token expirar.
@@ -170,7 +183,7 @@ antes de escrever.
 
 ## Como a qualidade é verificada
 
-**112 testes** cobrindo o que quebraria em silêncio: age gate bloqueando reentrada, consentimento
+**143 testes** cobrindo o que quebraria em silêncio: age gate bloqueando reentrada, consentimento
 versionado com revogação, idempotência de conversão, RBAC negando escrita ao perfil errado,
 assinatura de webhook rejeitando replay e corpo adulterado, resolução de conteúdo por campanha,
 e o ciclo de encerrar e reabrir um atendimento.

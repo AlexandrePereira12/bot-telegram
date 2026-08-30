@@ -14,7 +14,12 @@ import sys
 
 from app.core.database import SessionLocal
 from app.core.enums import OperatorRole
-from app.services.auth_service import ROLES_REQUIRING_2FA, AuthError, create_operator
+from app.services.auth_service import (
+    ROLES_REQUIRING_2FA,
+    AuthError,
+    create_operator,
+    reset_totp,
+)
 from app.services.tracking_service import create_token
 
 
@@ -70,8 +75,7 @@ async def _reset_2fa(email: str) -> int:
             print(f"{email} (role={operator.role.value}) nao usa 2FA.")
             return 0
 
-        operator.totp_secret = None
-        operator.totp_confirmed_at = None
+        reset_totp(operator)
         await session.commit()
 
     print(f"2FA de {email} reiniciado.")

@@ -155,6 +155,39 @@ def issue_tokens(operator: Operator) -> TokenPair:
     )
 
 
+async def count_active_admins(session: AsyncSession, *, excluding: int | None = None) -> int:
+    """Quantos ADMIN ativos restam no tenant.
+
+    Base do guarda de ultimo administrador: rebaixar, desativar ou excluir o
+    unico ADMIN ativo tranca a instalacao — depois disso so a CLI, com acesso
+    ao servidor, consegue criar outro.
+    """
+    stmt = select(func.count(Operator.id)).where(
+        Operator.tenant_id == settings.tenant_id,
+        Operator.role == OperatorRole.ADMIN,
+        Operator.is_active.is_(True),
+    )
+    if excluding is not None:
+        stmt = stmt.where(Operator.id != excluding)
+    return (await session.execute(stmt)).scalar_one()
+
+
+async def ensure_admin_remains(session: AsyncSession, *, excluding: int) -> None:
+    """Recusa a operacao que deixaria o tenant sem nenhum ADMIN ativo."""
+    if await count_active_admins(session, excluding=excluding) == 0:
+        raise AuthError("esta e a unica conta de administrador ativa")
+
+
+def reset_totp(operator: Operator) -> None:
+    """Descarta o cadastro do 2FA (celular perdido ou trocado).
+
+    O segredo antigo nao e reexibido: e simplesmente descartado, e o operador
+    cadastra outro no proximo login pelo mesmo fluxo de QR do primeiro acesso.
+    """
+    operator.totp_secret = None
+    operator.totp_confirmed_at = None
+
+
 async def create_operator(
     session: AsyncSession,
     *,

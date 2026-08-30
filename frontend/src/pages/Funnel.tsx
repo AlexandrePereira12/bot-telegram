@@ -1,18 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { ErrorBox, Loading, Panel } from '../components'
+import { funnelLabel } from '../labels'
 import { api } from '../services/api'
 import type { FunnelStep } from '../types'
-
-const LABELS: Record<string, string> = {
-  entradas: 'Entradas',
-  consentimento: 'Consentimento',
-  idade_confirmada: 'Idade confirmada',
-  qualificacao: 'Qualificação',
-  interesse: 'Interesse',
-  atendimento: 'Atendimento',
-  conversao: 'Conversão',
-}
 
 export default function Funnel() {
   const { data, isLoading, isError, error } = useQuery({
@@ -46,7 +37,7 @@ export default function Funnel() {
         )}
         {steps.map((step) => (
           <div className="funnel-row" key={step.step}>
-            <span>{LABELS[step.step] ?? step.step}</span>
+            <span>{funnelLabel(step.step)}</span>
             <div
               className="funnel-bar"
               style={{ width: `${Math.max((step.count / max) * 100, 1)}%` }}
