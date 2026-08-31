@@ -29,7 +29,7 @@ async def _content(
     resolved = await content_service.get_content(session, step, campaign_id)
     return ResolvedContent(
         body=content_service.render(resolved.body, **extra),
-        media_path=resolved.media_path,
+        media_id=resolved.media_id,
         media_type=resolved.media_type,
     )
 
@@ -162,7 +162,7 @@ async def on_interest(callback: CallbackQuery, session: AsyncSession) -> None:
         if propria is not None:
             resposta = ResolvedContent(
                 body=content_service.render(propria.body, interest=option.label),
-                media_path=propria.media_path,
+                media_id=propria.media_id,
                 media_type=propria.media_type,
             )
         else:

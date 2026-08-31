@@ -6,6 +6,7 @@ usuario real percorre.
 """
 
 from dataclasses import dataclass, field
+from io import BytesIO
 
 import pytest
 from sqlalchemy import func, select
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.bot.handlers import commands
 from app.bot.handlers import funnel as funnel_handlers
 from app.core.enums import ConsentStatus, EventType, FunnelState, SenderType
-from app.models import Campaign, ConsentRecord, Event, TelegramUser
+from app.models import Campaign, ConsentRecord, Event, MediaObject, TelegramUser
 from app.models import Message as MessageRow
 from app.services import lead_service, tracking_service
 
@@ -34,6 +35,26 @@ class FakeSent:
 
 
 @dataclass
+class FakeFile:
+    """Anexo do Telegram: o handler so precisa do tamanho e do file_id."""
+
+    file_id: str = "file-1"
+    file_size: int = 1024
+
+
+@dataclass
+class FakeBot:
+    """Dublê do bot para o download do anexo recebido."""
+
+    conteudo: bytes = b""
+    baixados: list[str] = field(default_factory=list)
+
+    async def download(self, alvo: FakeFile) -> BytesIO:
+        self.baixados.append(alvo.file_id)
+        return BytesIO(self.conteudo)
+
+
+@dataclass
 class FakeMessage:
     from_user: FakeUser = field(default_factory=FakeUser)
     message_id: int = 1
@@ -41,6 +62,14 @@ class FakeMessage:
     caption: str | None = None
     content_type: str = "text"
     answers: list[str] = field(default_factory=list)
+    # Anexos: a mensagem real do aiogram sempre expõe os campos, nulos quando
+    # nao ha midia. O handler decide por eles.
+    photo: list[FakeFile] | None = None
+    video: FakeFile | None = None
+    voice: FakeFile | None = None
+    audio: FakeFile | None = None
+    document: FakeFile | None = None
+    bot: FakeBot | None = None
 
     async def answer(self, text: str, reply_markup=None) -> FakeSent:
         self.answers.append(text)
@@ -567,3 +596,67 @@ async def test_opcao_sem_resposta_usa_a_mensagem_generica(
     await funnel_handlers.on_interest(escolha, session)
     # Texto da etapa INFORMATION, com {interest} preenchido pelo rotulo.
     assert "Sem resposta propria" in escolha.message.answers[-1]
+
+
+# ------------------------------------------------------------------- anexos
+JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+
+
+async def test_foto_sem_legenda_e_registrada_com_o_arquivo(
+    session: AsyncSession, global_content
+):
+    """Foto sem texto nao casava com handler nenhum e desaparecia.
+
+    Aqui a mensagem entra em `messages` com o anexo ja no volume — e o painel
+    tem o que exibir, em vez de um buraco na conversa.
+    """
+    from app.bot.handlers import messages as message_handlers
+
+    foto = FakeMessage(
+        text=None,
+        caption=None,
+        content_type="photo",
+        photo=[FakeFile(file_id="foto-pequena"), FakeFile(file_id="foto-grande")],
+        bot=FakeBot(conteudo=JPEG),
+    )
+    await message_handlers.on_message(foto, session)
+
+    row = (
+        await session.execute(
+            select(MessageRow).where(MessageRow.sender_type == SenderType.USER)
+        )
+    ).scalar_one()
+    midia = await session.get(MediaObject, row.media_id) if row.media_id else None
+
+    assert row.media_id, "anexo gravado no banco"
+    assert midia is not None and midia.content == JPEG, "bytes vao para o banco"
+    assert row.media_type == "photo"
+    assert row.content is None
+    assert foto.bot.baixados == ["foto-grande"], "maior resolucao disponivel"
+
+
+async def test_anexo_grande_demais_nao_impede_o_registro(
+    session: AsyncSession, global_content
+):
+    from app.bot.handlers import messages as message_handlers
+    from app.core.config import settings
+
+    acima = (settings.max_media_mb * 1024 * 1024) + 1
+    foto = FakeMessage(
+        text=None,
+        caption="olha isso",
+        content_type="photo",
+        photo=[FakeFile(file_id="gigante", file_size=acima)],
+        bot=FakeBot(conteudo=JPEG),
+    )
+    await message_handlers.on_message(foto, session)
+
+    row = (
+        await session.execute(
+            select(MessageRow).where(MessageRow.sender_type == SenderType.USER)
+        )
+    ).scalar_one()
+
+    assert row.media_id is None
+    assert row.content == "olha isso", "a conversa continua registrada sem o anexo"
+    assert foto.bot.baixados == [], "nao chega a baixar"

@@ -59,9 +59,12 @@ class Settings(BaseSettings):
 
     n8n_webhook_url: str = ""
 
-    #: Volume onde ficam imagens/videos do funil. Montado no compose; nunca
-    #: servido diretamente pela web — o bot le do disco e envia como arquivo.
+    #: Legado: caminho do volume que guardava a midia antes dela ir para o
+    #: banco. Continua aqui porque a migration 0007 le esses arquivos para
+    #: importar; nenhum codigo de runtime escreve ou le do disco.
     media_root: str = "/app/media"
+    #: Teto por arquivo. 20MB e o limite de download de arquivo do bot no
+    #: Telegram — passar disso guardaria no banco algo que nao consegue sair.
     max_media_mb: int = 20
 
     @property

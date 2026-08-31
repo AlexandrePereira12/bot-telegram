@@ -16,7 +16,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.core.enums import EventType, FunnelState, MessageDirection, SenderType
+from app.core.enums import EventType, FunnelState, MediaType, MessageDirection, SenderType
 from app.core.logging import get_logger, setup_logging
 from app.models import Lead, TelegramUser
 from app.services import conversation_service, funnel_service
@@ -51,41 +51,75 @@ async def _to_dead_letter(ctx: dict[str, Any], job: str, reason: str, payload: d
         logger.exception("falha ao gravar dead-letter", extra={"event": "DEADLETTER_FAILED"})
 
 
+async def _fallback_texto(bot: Any, telegram_id: int, text: str, tinha_midia: bool) -> None:
+    """Envia o texto quando a midia nao pode sair.
+
+    Mensagem que era so anexo fica sem texto nenhum: mandar string vazia seria
+    erro da API do Telegram, entao o envio simplesmente nao acontece e o
+    problema fica no log em vez de virar retry infinito.
+    """
+    if text and text.strip():
+        await bot.send_message(chat_id=telegram_id, text=text)
+        return
+    logger.warning(
+        "mensagem sem texto e sem midia utilizavel; nada enviado",
+        extra={"event": "MESSAGE_DROPPED", "tinha_midia": tinha_midia},
+    )
+
+
 async def send_telegram_message(
     ctx: dict[str, Any],
     telegram_id: int,
     text: str,
     message_id: int | None = None,
-    media_path: str | None = None,
-    media_type: str | None = None,
+    media_id: int | None = None,
 ) -> dict[str, Any]:
     """Envia mensagem pelo Telegram fora do ciclo de request da API.
 
-    Com midia, o arquivo sai do volume como bytes (FSInputFile) — o servidor
-    do Telegram nao alcancaria uma URL local.
-    """
-    from pathlib import Path
+    Com midia, os bytes vem de `media_objects` e sobem como upload — o
+    servidor do Telegram nao alcancaria uma URL local, e nao existe mais
+    arquivo em disco para apontar.
 
-    from aiogram.types import FSInputFile
+    Cada tipo tem seu metodo: voz precisa de `send_voice` para virar bolha de
+    audio gravado, e tipo desconhecido cai para texto em vez de ser mandado
+    pelo metodo errado.
+    """
+    from aiogram.types import BufferedInputFile
 
     from app.bot.bot import create_bot
+    from app.services import media_service
+
+    media = None
+    if media_id is not None:
+        async with SessionLocal() as session:
+            media = await media_service.load(session, media_id)
+        if media is None:
+            logger.warning(
+                "midia da mensagem nao encontrada; enviando so o texto",
+                extra={"event": "MEDIA_NOT_FOUND", "media_id": media_id},
+            )
 
     bot = create_bot()
     try:
-        arquivo = Path(settings.media_root) / media_path if media_path else None
-        if arquivo is not None and arquivo.is_file() and media_type:
-            entrada = FSInputFile(str(arquivo))
-            if media_type == "photo":
-                await bot.send_photo(chat_id=telegram_id, photo=entrada, caption=text or None)
+        if media is not None:
+            arquivo = BufferedInputFile(media.content, filename=media.filename())
+            legenda = text or None
+            if media.media_type == MediaType.PHOTO:
+                await bot.send_photo(chat_id=telegram_id, photo=arquivo, caption=legenda)
+            elif media.media_type == MediaType.VIDEO:
+                await bot.send_video(chat_id=telegram_id, video=arquivo, caption=legenda)
+            elif media.media_type == MediaType.VOICE:
+                await bot.send_voice(chat_id=telegram_id, voice=arquivo, caption=legenda)
+            elif media.media_type == MediaType.AUDIO:
+                await bot.send_audio(chat_id=telegram_id, audio=arquivo, caption=legenda)
             else:
-                await bot.send_video(chat_id=telegram_id, video=entrada, caption=text or None)
-        else:
-            if media_path:
                 logger.warning(
-                    "midia da mensagem nao encontrada; enviando so o texto",
-                    extra={"event": "MEDIA_NOT_FOUND"},
+                    "tipo de midia desconhecido; enviando so o texto",
+                    extra={"event": "MEDIA_TYPE_UNKNOWN", "type": media.media_type},
                 )
-            await bot.send_message(chat_id=telegram_id, text=text)
+                await _fallback_texto(bot, telegram_id, text, True)
+        else:
+            await _fallback_texto(bot, telegram_id, text, media_id is not None)
         return {"sent": True, "message_id": message_id}
     except Exception as exc:
         tries = ctx.get("job_try", 1)

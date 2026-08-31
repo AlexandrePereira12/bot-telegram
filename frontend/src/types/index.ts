@@ -116,11 +116,15 @@ export interface Conversation {
   closed_by_operator_id: number | null
 }
 
+/** `voice` é áudio gravado (bolha de voz no Telegram); `audio` é arquivo. */
+export type MediaType = 'photo' | 'video' | 'voice' | 'audio'
+
 export interface Message {
   id: number
   conversation_id: number
-  media_path: string | null
-  media_type: 'photo' | 'video' | null
+  /** referência em `media_objects`; os bytes vêm da rota autenticada */
+  media_id: number | null
+  media_type: MediaType | null
   direction: 'inbound' | 'outbound'
   sender_type: 'bot' | 'user' | 'operator'
   sender_id: number | null
@@ -155,8 +159,8 @@ export type FunnelStepKey =
 export interface FunnelStepContent {
   step: FunnelStepKey
   body: string
-  media_path: string | null
-  media_type: 'photo' | 'video' | null
+  media_id: number | null
+  media_type: MediaType | null
   /** de onde veio o texto exibido */
   origin: 'campanha' | 'global' | 'codigo'
   editable_per_campaign: boolean
@@ -172,12 +176,12 @@ export interface QualificationOption {
   is_active: boolean
   /** resposta própria; vazio faz cair na mensagem genérica da etapa */
   response_body: string | null
-  response_media_path: string | null
-  response_media_type: 'photo' | 'video' | null
+  response_media_id: number | null
+  response_media_type: MediaType | null
 }
 
 export interface MediaUpload {
-  media_path: string
-  media_type: 'photo' | 'video'
+  media_id: number
+  media_type: MediaType
   size_bytes: number
 }

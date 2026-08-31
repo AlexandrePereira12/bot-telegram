@@ -78,8 +78,12 @@ class Message(Base, TenantMixin, TimestampMixin):
     sender_id: Mapped[int | None] = mapped_column(ForeignKey("operators.id", ondelete="SET NULL"))
     message_type: Mapped[str] = mapped_column(String(32), nullable=False, default="text")
     content: Mapped[str | None] = mapped_column(Text)
-    #: Anexo da mensagem, relativo ao volume de midia.
-    media_path: Mapped[str | None] = mapped_column(String(255))
+    #: Anexo da mensagem. Os bytes ficam em `media_objects`; o tipo fica
+    #: repetido aqui de proposito, para a lista de mensagens do painel nao
+    #: precisar de join so para saber se e imagem ou audio.
+    media_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_objects.id", ondelete="SET NULL"), index=True
+    )
     media_type: Mapped[MediaType | None] = mapped_column(
         Enum(MediaType, native_enum=False, length=16)
     )

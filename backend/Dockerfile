@@ -6,8 +6,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# ffmpeg converte o audio gravado no painel (WebM/Opus no Chrome, MP4/AAC no
+# Safari) para OGG/Opus, unico formato que o Telegram aceita como mensagem de
+# voz. Sem ele o botao de gravar do chat nao tem como funcionar.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
@@ -19,9 +22,9 @@ RUN pip install --upgrade pip && pip install .
 
 # Processo nao roda como root.
 #
-# /app/media e criado aqui com o dono certo: o volume herda a propriedade do
-# diretorio existente na imagem. Sem isso o volume nasce como root e o
-# processo nao consegue gravar a midia enviada pelo painel.
+# /app/media existe apenas para a migration 0007 conseguir ler a midia antiga
+# do volume legado; o dono certo evita que o volume nasca como root. Nenhum
+# processo escreve ai em runtime — a midia vive no PostgreSQL.
 RUN useradd --create-home --uid 10001 appuser \
     && mkdir -p /app/media \
     && chown -R appuser:appuser /app

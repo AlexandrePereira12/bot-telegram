@@ -46,10 +46,11 @@ class FunnelContent(Base, TenantMixin, TimestampMixin, UpdatedAtMixin):
         Enum(FunnelStep, native_enum=False, length=32), nullable=False
     )
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    #: Caminho relativo dentro do volume de midia — nunca uma URL: o servidor
-    #: do Telegram nao alcanca o host local, entao o arquivo e enviado como
-    #: bytes a partir do disco.
-    media_path: Mapped[str | None] = mapped_column(String(255))
+    #: Anexo da etapa. Os bytes ficam em `media_objects` e vao ao Telegram
+    #: como upload — nunca como URL, que o servidor dele nao alcancaria.
+    media_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_objects.id", ondelete="SET NULL"), index=True
+    )
     media_type: Mapped[MediaType | None] = mapped_column(
         Enum(MediaType, native_enum=False, length=16)
     )
@@ -93,7 +94,9 @@ class QualificationOption(Base, TenantMixin, TimestampMixin, UpdatedAtMixin):
     #: So se aplica a opcao com target=INFORMATION: quem vai para atendimento
     #: humano recebe a mensagem de fila, nao um texto de conteudo.
     response_body: Mapped[str | None] = mapped_column(Text)
-    response_media_path: Mapped[str | None] = mapped_column(String(255))
+    response_media_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_objects.id", ondelete="SET NULL"), index=True
+    )
     response_media_type: Mapped[MediaType | None] = mapped_column(
         Enum(MediaType, native_enum=False, length=16)
     )

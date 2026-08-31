@@ -251,8 +251,10 @@ async def test_devolver_sem_encerrar_nao_pede_desfecho(session: AsyncSession):
 async def test_mensagem_do_operador_guarda_o_anexo(session: AsyncSession):
     from app.core.enums import MediaType, MessageDirection, SenderType
     from app.models import Message
+    from app.services import media_service
 
     operator, user, lead, conversation = await _cenario(session, telegram_id=5099)
+    midia = await media_service.save(session, b"\xff\xd8\xff\xe0" + b"\x00" * 32)
 
     await conversation_service.record_message(
         session,
@@ -262,18 +264,18 @@ async def test_mensagem_do_operador_guarda_o_anexo(session: AsyncSession):
         sender_id=operator.id,
         content="segue a tabela",
         message_type="photo",
-        media_path="tenant/abc.png",
+        media_id=midia.id,
         media_type=MediaType.PHOTO,
     )
     await session.flush()
 
     msg = (
         await session.execute(
-            select(Message).where(Message.media_path.is_not(None))
+            select(Message).where(Message.media_id.is_not(None))
         )
     ).scalar_one()
     assert msg.media_type == MediaType.PHOTO
-    assert msg.media_path == "tenant/abc.png"
+    assert msg.media_id == midia.id
     assert msg.sender_type == SenderType.OPERATOR
 
 
@@ -288,6 +290,138 @@ def test_resposta_do_operador_exige_texto_ou_anexo():
     with _pytest.raises(ValidationError):
         OperatorReply(content="   ")
 
-    so_anexo = OperatorReply(content="", media_path="t/x.png", media_type=MediaType.PHOTO)
-    assert so_anexo.media_path == "t/x.png"
+    so_anexo = OperatorReply(content="", media_id=7, media_type=MediaType.PHOTO)
+    assert so_anexo.media_id == 7
     assert OperatorReply(content="texto").content == "texto"
+
+
+# ------------------------------------------------------- despedida e reabertura
+async def test_despedida_fica_registrada_no_atendimento_encerrado(session: AsyncSession):
+    """A ultima mensagem entra antes do fechamento, dentro do mesmo ciclo."""
+    from app.core.enums import MessageDirection, SenderType
+    from app.models import Message
+
+    operator, user, lead, conversation = await _cenario(session)
+
+    await conversation_service.close_with_outcome(
+        session,
+        conversation.id,
+        operator,
+        outcome=ConversationOutcome.NOT_CONVERTED,
+        farewell="  Obrigado pelo contato!  ",
+    )
+    await session.flush()
+
+    mensagem = (
+        await session.execute(
+            select(Message).where(Message.sender_type == SenderType.OPERATOR)
+        )
+    ).scalar_one()
+
+    assert mensagem.content == "Obrigado pelo contato!", "espacos das pontas removidos"
+    assert mensagem.direction == MessageDirection.OUTBOUND
+    assert mensagem.conversation_id == conversation.id
+    assert mensagem.sender_id == operator.id
+
+
+async def test_encerrar_sem_despedida_nao_cria_mensagem(session: AsyncSession):
+    from app.core.enums import SenderType
+    from app.models import Message
+
+    operator, user, lead, conversation = await _cenario(session)
+    await conversation_service.close_with_outcome(
+        session,
+        conversation.id,
+        operator,
+        outcome=ConversationOutcome.NOT_CONVERTED,
+        farewell="   ",
+    )
+    await session.flush()
+
+    enviadas = (
+        await session.execute(
+            select(func.count(Message.id)).where(Message.sender_type == SenderType.OPERATOR)
+        )
+    ).scalar_one()
+    assert enviadas == 0
+
+
+async def test_reabrir_devolve_o_atendimento_para_a_fila(session: AsyncSession):
+    operator, user, lead, conversation = await _cenario(session)
+    await conversation_service.close_with_outcome(
+        session,
+        conversation.id,
+        operator,
+        outcome=ConversationOutcome.NOT_CONVERTED,
+        reason="sem resposta",
+    )
+    await session.flush()
+
+    reaberta = await conversation_service.reopen(session, conversation.id, operator)
+    await session.flush()
+
+    assert reaberta.id == conversation.id, "mesma conversa, nao um ciclo novo"
+    assert reaberta.status == ConversationStatus.OPEN
+    assert reaberta.assigned_to is None, "volta para a fila sem dono"
+    assert reaberta.outcome is None
+    assert reaberta.outcome_reason is None
+    assert reaberta.ended_at is None
+    assert user.current_state == FunnelState.QUALIFICATION, "funil tambem reabre"
+
+    eventos = [e.event_type for e in (await session.execute(select(Event))).scalars()]
+    assert EventType.HUMAN_SUPPORT_REOPENED in eventos
+
+
+async def test_reabrir_nao_apaga_conversao_nem_duplica_ao_fechar_de_novo(
+    session: AsyncSession,
+):
+    """Reabrir nao pode virar caminho para contar a mesma venda duas vezes."""
+    operator, user, lead, conversation = await _cenario(session)
+    await conversation_service.close_with_outcome(
+        session, conversation.id, operator, outcome=ConversationOutcome.CONVERTED, value=300.0
+    )
+    await session.flush()
+
+    await conversation_service.reopen(session, conversation.id, operator)
+    await session.flush()
+    assert await _count(session, Conversion) == 1, "reabrir preserva a conversao"
+
+    await conversation_service.close_with_outcome(
+        session, conversation.id, operator, outcome=ConversationOutcome.CONVERTED, value=300.0
+    )
+    await session.flush()
+    assert await _count(session, Conversion) == 1, "mesmo external_id, sem duplicata"
+
+
+async def test_reabrir_atendimento_aberto_e_recusado(session: AsyncSession):
+    operator, user, lead, conversation = await _cenario(session)
+
+    with pytest.raises(conversation_service.ConversationError, match="nao esta encerrado"):
+        await conversation_service.reopen(session, conversation.id, operator)
+
+
+async def test_reabrir_conversa_inexistente_e_erro_de_ausencia(session: AsyncSession):
+    """404 e 409 vem de excecoes diferentes: a rota depende dessa distincao."""
+    operator, user, lead, conversation = await _cenario(session)
+
+    with pytest.raises(conversation_service.ConversationNotFound):
+        await conversation_service.reopen(session, 99999, operator)
+
+
+async def test_reabrir_nao_burla_o_age_gate(session: AsyncSession):
+    """Reprovado na idade: a conversa reabre, o funil nao."""
+    operator, user, lead, conversation = await _cenario(session, telegram_id=5099)
+    user.age_rejected = True
+    user.current_state = FunnelState.EXIT
+    await session.flush()
+
+    await conversation_service.close_with_outcome(
+        session, conversation.id, operator, outcome=ConversationOutcome.NOT_CONVERTED
+    )
+    await session.flush()
+
+    reaberta = await conversation_service.reopen(session, conversation.id, operator)
+    await session.flush()
+
+    assert reaberta.status == ConversationStatus.OPEN
+    assert user.current_state == FunnelState.EXIT, "age gate sobrevive a reabertura"

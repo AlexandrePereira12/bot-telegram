@@ -19,7 +19,10 @@ router = Router(name="messages")
 logger = get_logger(__name__)
 
 
-@router.message(F.text | F.caption)
+# Anexo sem legenda tambem entra: com o filtro so em texto/legenda, uma foto
+# enviada sem nada escrito nao casava com handler nenhum e sumia — nao virava
+# linha em `messages` e o operador nunca via que o lead tinha mandado algo.
+@router.message(F.text | F.caption | F.photo | F.video | F.voice | F.audio | F.document)
 async def on_message(message: Message, session: AsyncSession) -> None:
     if message.from_user is None:
         return

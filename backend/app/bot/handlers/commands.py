@@ -27,7 +27,7 @@ async def _content(
     resolved = await content_service.get_content(session, step, campaign_id)
     return content_service.ResolvedContent(
         body=content_service.render(resolved.body, **extra),
-        media_path=resolved.media_path,
+        media_id=resolved.media_id,
         media_type=resolved.media_type,
     )
 

@@ -57,13 +57,21 @@ o registro deixaria de provar o que a pessoa aceitou.
 
 ### Passa a conversa para uma pessoa quando precisa
 
-O operador assume a conversa e o bot silencia automaticamente. A resposta sai pelo painel — texto ou
-anexo — e é entregue por um worker, então instabilidade do Telegram não derruba a requisição.
+O operador assume a conversa e o bot silencia automaticamente. A resposta sai pelo painel — texto,
+imagem, vídeo ou áudio gravado ali mesmo — e é entregue por um worker, então instabilidade do
+Telegram não derruba a requisição.
 
-Encerrar exige dizer **como terminou**: converteu ou não, com valor e observação opcionais. O
-atendimento sai da fila e vai para o histórico. Se o lead voltar a escrever, começa um ciclo novo,
-com sua própria conversa e seu próprio desfecho — sem repetir termos nem verificação de idade, e sem
-apagar a conversão do ciclo anterior.
+A conversa aparece inteira no painel, incluindo o que o lead mandou: foto, vídeo e áudio são
+baixados do Telegram no momento em que chegam e exibidos dentro da bolha. Anexo sem legenda também
+entra — antes, foto sem texto não casava com nenhum handler e sumia sem virar registro.
+
+Encerrar exige dizer **como terminou**: converteu ou não, com valor e observação opcionais, e sem
+desfecho pré-marcado — a confirmação mostra o que será gravado antes de gravar. Dá para mandar uma
+despedida junto, que fica registrada dentro do atendimento que ela encerrou. O atendimento sai da
+fila e vai para o histórico. Se o lead voltar a escrever, começa um ciclo novo, com sua própria
+conversa e seu próprio desfecho — sem repetir termos nem verificação de idade, e sem apagar a
+conversão do ciclo anterior. Encerramento errado se corrige reabrindo o mesmo atendimento, sem
+esperar o lead escrever.
 
 É isso que torna respondível "quantos atendimentos deram certo", por operador e por campanha.
 
@@ -81,7 +89,7 @@ nunca como zero, que seria uma resposta errada disfarçada de número.
 |---|---|
 | API | FastAPI · Python 3.12 |
 | Bot | aiogram 3 — polling em desenvolvimento, webhook em produção |
-| Banco | PostgreSQL 16 · SQLAlchemy 2 · Alembic |
+| Banco | PostgreSQL 16 · SQLAlchemy 2 · Alembic (mídia inclusive, em `bytea`) |
 | Cache, filas e locks | Redis 7 |
 | Jobs assíncronos | ARQ |
 | Painel | React 18 · TypeScript · Vite · TanStack Query · Recharts |
@@ -103,9 +111,9 @@ E é o que torna as regras testáveis sem subir um bot.
 ```
 backend/app/
 ├── core/          configuração, banco, segurança, logging, enums
-├── models/        17 tabelas
+├── models/        18 tabelas
 ├── services/      funil, tracking, conversão, conteúdo, atendimento, compliance
-├── api/routes/    37 endpoints REST
+├── api/routes/    41 endpoints REST
 ├── bot/           handlers, teclados, middlewares — sem regra de negócio
 └── workers/       follow-up, envio, agregação
 ```
@@ -171,6 +179,29 @@ auditoria registra quem criou quem, com qual perfil — nunca a senha.
 decidir o que mostrar; ele não autoriza nada sozinho. Desativar um operador tem efeito imediato, sem
 esperar token expirar.
 
+**Toda a mídia vive no PostgreSQL, e nada é gravado em disco.** Imagem, vídeo e áudio são linhas de
+`media_objects` (`bytea`), não arquivos num volume. O motivo é de operação, não de gosto: com o
+arquivo fora do banco, restaurar o dump devolvia a conversa apontando para um arquivo que não existia
+mais — buraco no histórico, sem erro em lugar nenhum. Agora `pg_dump` é o backup completo do
+atendimento, e o par (mensagem, anexo) entra e sai na mesma transação.
+
+**A mídia é servida por id de mensagem, não por id do arquivo.** A única porta é
+`GET /conversations/{id}/messages/{id}/media`, autenticada e escopada por conversa: ninguém varre
+`media_objects` por id sequencial, e a autorização sai de graça em vez de virar um servidor de
+arquivos genérico. Como `<img src>` não manda header, o navegador busca por `fetch` e usa um blob
+local — token em query string vazaria em log de proxy e histórico.
+
+**O anexo do chat tem rota própria por causa da permissão.** `POST /content/media` exige
+`campaigns:write`, que só ADMIN e MANAGER têm — ou seja, o clipe do chat respondia 403 justamente
+para OPERATOR e SUPPORT, que são quem atende. Em vez de afrouxar a permissão do funil, o chat ganhou
+`POST /conversations/{id}/media` sob `conversations:write`: quem anexa uma imagem numa conversa não
+ganha com isso o direito de editar as mensagens do funil.
+
+**Formato é decidido pelo conteúdo, e áudio é discriminado do vídeo.** MP4 e M4A compartilham o mesmo
+`ftyp`; sem olhar o brand, todo áudio entraria como vídeo e sairia pelo `send_video`. Ogg só vira
+mensagem de voz quando é Opus de verdade. Cada tipo tem seu método no Telegram, e tipo desconhecido
+cai para texto em vez de ser mandado pelo método errado.
+
 **Só o Nginx é publicado.** PostgreSQL e Redis vivem na rede interna. `/metrics` não é servido
 publicamente — um allowlist por IP nessa camada seria inútil, porque atrás do Docker todo cliente
 externo chega com o endereço da bridge. A documentação interativa desaparece sozinha em produção.
@@ -183,10 +214,12 @@ antes de escrever.
 
 ## Como a qualidade é verificada
 
-**143 testes** cobrindo o que quebraria em silêncio: age gate bloqueando reentrada, consentimento
+**171 testes** cobrindo o que quebraria em silêncio: age gate bloqueando reentrada, consentimento
 versionado com revogação, idempotência de conversão, RBAC negando escrita ao perfil errado,
 assinatura de webhook rejeitando replay e corpo adulterado, resolução de conteúdo por campanha,
-e o ciclo de encerrar e reabrir um atendimento.
+o ciclo de encerrar e reabrir um atendimento, a rota de mídia negando anexo de outra conversa ou de
+outro tenant, a detecção de formato separando M4A de MP4, e a conversão de uma gravação de navegador
+em OGG/Opus com o ffmpeg de verdade.
 
 Boa parte roda **os handlers do bot de verdade**, com dublês no lugar da API do Telegram — testar só
 os serviços deixaria passar bugs no caminho que o usuário percorre.

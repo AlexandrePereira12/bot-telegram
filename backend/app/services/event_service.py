@@ -44,7 +44,9 @@ async def record_audit(
     actor_id: int | None,
     action: str,
     resource_type: str,
-    resource_id: str | None = None,
+    # int aceito porque quase toda chamada passa o id da linha; a conversao
+    # para texto acontece aqui, num lugar so.
+    resource_id: str | int | None = None,
     result: str = "success",
     metadata: dict[str, Any] | None = None,
     ip_hash: str | None = None,

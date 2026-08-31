@@ -711,14 +711,6 @@ textarea::placeholder {
 
 /* --- funil --- */
 
-.funnel-row {
-  display: grid;
-  grid-template-columns: 150px 1fr 110px;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
 .funnel-bar {
   height: 24px;
   background: var(--accent);
@@ -902,4 +894,459 @@ textarea::placeholder {
   .content {
     padding: 20px 16px 40px;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Dashboard, funil e leads.
+
+   Três telas que mostravam números sem dizer a que recorte pertenciam. O que
+   vem abaixo existe para separar o que é do período do que é de agora, dar
+   escala às barras do funil e deixar visível o filtro aplicado numa lista.
+--------------------------------------------------------------------------- */
+
+/* --- indicadores --- */
+
+.group-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.group-title .muted {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+.card-hint {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+  margin-top: 6px;
+}
+
+/* O tom pinta a borda, não o fundo: um cartão inteiro colorido no meio de
+   outros neutros lê como alerta mesmo quando o número é bom. */
+.card.ok {
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+}
+
+.card.warn {
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+}
+
+.card.danger {
+  border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+}
+
+a.card-link {
+  display: block;
+  color: inherit;
+}
+
+a.card-link:hover {
+  text-decoration: none;
+  border-color: var(--accent);
+}
+
+a.card-link .value {
+  color: var(--text);
+}
+
+/* --- período --- */
+
+.period-picker {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.section-head > div:first-child {
+  min-width: 0;
+}
+
+.section-head .page-sub {
+  margin-bottom: 0;
+  max-width: 62ch;
+}
+
+/* --- funil --- */
+
+.funnel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.funnel-step {
+  display: grid;
+  grid-template-columns: 210px minmax(120px, 1fr) 92px 190px;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+}
+
+.funnel-step:hover {
+  background: var(--surface-2);
+}
+
+/* A etapa de maior queda proporcional é o dado acionável da tela; sem marca
+   ela some no meio de sete linhas iguais. */
+.funnel-step.gargalo {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  box-shadow: inset 2px 0 0 var(--warn);
+}
+
+.funnel-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.funnel-name strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.funnel-name span {
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.funnel-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.funnel-track .funnel-bar {
+  height: 20px;
+  border-radius: 3px;
+}
+
+.funnel-count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.funnel-rate,
+.funnel-delta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+  font-size: 11.5px;
+}
+
+.funnel-rate .num {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.funnel-delta .perda {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--danger);
+}
+
+.funnel-legend {
+  font-size: 11.5px;
+  margin: 14px 0 0;
+}
+
+/* --- filtros e paginação --- */
+
+.chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 999px;
+}
+
+.chip-remove:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.pager-info {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 12px 0 0;
+  margin-right: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.pager .pager-info {
+  margin-top: 0;
+}
+
+/* --- linha do tempo --- */
+
+.timeline-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.timeline-when {
+  font-size: 11.5px;
+  margin-left: auto;
+}
+
+.timeline-detail {
+  margin: 6px 0 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 10px;
+  font-size: 12px;
+}
+
+.timeline-detail > div {
+  display: contents;
+}
+
+.timeline-detail dt {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.timeline-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* --- telas estreitas --- */
+
+@media (max-width: 900px) {
+  .funnel-step {
+    grid-template-columns: 1fr 84px;
+    grid-template-areas:
+      'nome taxa'
+      'barra barra'
+      'delta delta';
+    gap: 6px 10px;
+  }
+
+  .funnel-name {
+    grid-area: nome;
+  }
+
+  .funnel-track {
+    grid-area: barra;
+  }
+
+  .funnel-rate {
+    grid-area: taxa;
+    text-align: right;
+  }
+
+  .funnel-rate .num {
+    text-align: right;
+  }
+
+  .funnel-delta {
+    grid-area: delta;
+    flex-direction: row;
+    gap: 6px;
+    align-items: baseline;
+  }
+}
+
+@media (max-width: 560px) {
+  .section-head {
+    margin-bottom: 16px;
+  }
+
+  .toolbar .field {
+    min-width: 130px;
+    flex: 1 1 130px;
+  }
+}
+
+/* --- anexos do chat --- */
+
+/* Imagem e vídeo entram na bolha com largura limitada: anexo grande empurrava
+   a conversa inteira e escondia o texto que veio junto. */
+.anexo-midia {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: var(--surface-2);
+}
+
+.anexo-audio {
+  display: block;
+  width: 240px;
+  max-width: 100%;
+  height: 34px;
+  margin-bottom: 6px;
+}
+
+.anexo-aviso {
+  display: block;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.anexo-pendente {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+.anexo-preview {
+  height: 46px;
+  border-radius: 6px;
+}
+
+/* --- gravação de áudio --- */
+
+.gravador {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.gravando-pulso {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: pulso 1s ease-in-out infinite;
+}
+
+.gravando-tempo {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@keyframes pulso {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Respeita quem pediu menos animação no sistema; o ponto continua visível. */
+@media (prefers-reduced-motion: reduce) {
+  .gravando-pulso {
+    animation: none;
+  }
+}
+
+/* --- encerramento do atendimento --- */
+
+.close-form {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin: 12px 0;
+}
+
+.close-form textarea {
+  width: 100%;
+}
+
+.motivos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.motivo {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.motivo.ativo {
+  background: var(--accent-soft);
+  color: var(--text);
+  border-color: transparent;
+}
+
+.resumo-encerramento {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+/* Grupo com poucos indicadores: sem o teto de largura um cartão sozinho
+   estica pela linha inteira e passa a parecer o assunto principal da tela. */
+.cards.compact {
+  grid-template-columns: repeat(auto-fit, minmax(168px, 264px));
+}
+
+/* Rótulos alinhados na linha de filtros: `select` e `input` (inclusive o de
+   data, com o botão do calendário) têm alturas próprias, e alinhados pela base
+   cada rótulo parava numa altura diferente. */
+.toolbar.filters {
+  align-items: flex-start;
+}
+
+.toolbar.filters input,
+.toolbar.filters select {
+  height: 34px;
 }

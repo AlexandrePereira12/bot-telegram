@@ -89,7 +89,7 @@ async def list_steps(
             ResolvedStepOut(
                 step=step,
                 body=row.body,
-                media_path=row.media_path,
+                media_id=row.media_id,
                 media_type=row.media_type,
                 origin=origin,
                 editable_per_campaign=editable,
@@ -130,15 +130,15 @@ async def upsert_step(
         )
         session.add(content)
 
-    anterior = content.media_path
+    anterior = content.media_id
     content.body = payload.body
-    content.media_path = payload.media_path
+    content.media_id = payload.media_id
     content.media_type = payload.media_type
 
-    # Midia trocada: remove o arquivo antigo para o volume nao crescer com
-    # orfaos a cada edicao.
-    if anterior and anterior != payload.media_path:
-        media_service.delete(anterior)
+    # Midia trocada: apaga a antiga para o banco nao crescer com orfaos a cada
+    # edicao.
+    if anterior and anterior != payload.media_id:
+        await media_service.delete(session, anterior)
 
     await record_audit(
         session,
@@ -177,8 +177,8 @@ async def delete_step(
     if content is None:
         return
 
-    if content.media_path:
-        media_service.delete(content.media_path)
+    if content.media_id:
+        await media_service.delete(session, content.media_id)
     await session.delete(content)
     await record_audit(
         session,
@@ -237,18 +237,18 @@ async def upsert_option(
         )
         session.add(option)
 
-    anterior = option.response_media_path
+    anterior = option.response_media_id
     option.label = payload.label
     option.target = payload.target
     option.sort_order = payload.sort_order
     option.is_active = payload.is_active
     option.response_body = payload.response_body
-    option.response_media_path = payload.response_media_path
+    option.response_media_id = payload.response_media_id
     option.response_media_type = payload.response_media_type
 
-    # Midia trocada: apaga a antiga para o volume nao acumular orfaos.
-    if anterior and anterior != payload.response_media_path:
-        media_service.delete(anterior)
+    # Midia trocada: apaga a antiga para o banco nao acumular orfaos.
+    if anterior and anterior != payload.response_media_id:
+        await media_service.delete(session, anterior)
 
     await record_audit(
         session,
@@ -302,13 +302,13 @@ async def upload_media(
     file: UploadFile = File(...),
     operator: Operator = ContentWrite,
 ) -> MediaUploadOut:
-    """Recebe imagem ou video para usar nas mensagens do funil.
+    """Recebe imagem, video ou audio para usar nas mensagens do funil.
 
     Tipo detectado pelo conteudo do arquivo, nao pela extensao enviada.
     """
     content = await file.read()
     try:
-        relative, media_type, size = media_service.save(content)
+        media = await media_service.save(session, content)
     except media_service.MediaError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
@@ -319,9 +319,11 @@ async def upload_media(
         actor_id=operator.id,
         action="upload",
         resource_type="media",
-        resource_id=relative,
-        metadata={"type": media_type.value, "bytes": size},
+        resource_id=media.id,
+        metadata={"type": media.media_type.value, "bytes": media.size_bytes},
         ip_hash=hash_ip(client_ip(request)),
     )
     await session.commit()
-    return MediaUploadOut(media_path=relative, media_type=media_type, size_bytes=size)
+    return MediaUploadOut(
+        media_id=media.id, media_type=media.media_type, size_bytes=media.size_bytes
+    )

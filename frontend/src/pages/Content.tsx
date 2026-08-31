@@ -135,7 +135,7 @@ function StepEditor({
   onSaved: () => void
 }) {
   const [body, setBody] = useState(step.body)
-  const [mediaPath, setMediaPath] = useState(step.media_path)
+  const [mediaId, setMediaId] = useState(step.media_id)
   const [mediaType, setMediaType] = useState(step.media_type)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -143,7 +143,7 @@ function StepEditor({
   const bloqueada = campaignId !== null && !step.editable_per_campaign
   const alterado =
     body !== step.body ||
-    mediaPath !== step.media_path ||
+    mediaId !== step.media_id ||
     mediaType !== step.media_type
 
   const salvar = useMutation({
@@ -153,7 +153,7 @@ function StepEditor({
         body: JSON.stringify({
           step: step.step,
           body,
-          media_path: mediaPath,
+          media_id: mediaId,
           media_type: mediaType,
         }),
       }),
@@ -175,7 +175,7 @@ function StepEditor({
   const enviarMidia = useMutation({
     mutationFn: (file: File) => uploadMedia(file),
     onSuccess: (r) => {
-      setMediaPath(r.media_path)
+      setMediaId(r.media_id)
       setMediaType(r.media_type)
       setErro(null)
     },
@@ -220,7 +220,7 @@ function StepEditor({
         </small>
       )}
 
-      {mediaPath && (
+      {mediaId && (
         <div style={{ marginTop: 8 }}>
           <span className="badge">{mediaType}</span>{' '}
           <span className="muted" style={{ fontSize: 12 }}>
@@ -230,7 +230,7 @@ function StepEditor({
             className="secondary"
             style={{ padding: '2px 8px', fontSize: 11 }}
             onClick={() => {
-              setMediaPath(null)
+              setMediaId(null)
               setMediaType(null)
             }}
           >
@@ -248,10 +248,10 @@ function StepEditor({
           </button>
 
           <label className="btn secondary" style={{ cursor: 'pointer' }}>
-            {enviarMidia.isPending ? 'enviando…' : 'Anexar imagem/vídeo'}
+            {enviarMidia.isPending ? 'enviando…' : 'Anexar mídia'}
             <input
               type="file"
-              accept="image/*,video/*"
+              accept="image/*,video/*,audio/*"
               style={{ display: 'none' }}
               onChange={(e) => {
                 const f = e.target.files?.[0]
@@ -416,7 +416,7 @@ function OptionForm({
   const [target, setTarget] = useState(inicial?.target ?? 'INFORMATION')
   const [ordem, setOrdem] = useState(inicial?.sort_order ?? 0)
   const [resposta, setResposta] = useState(inicial?.response_body ?? '')
-  const [mediaPath, setMediaPath] = useState(inicial?.response_media_path ?? null)
+  const [mediaId, setMediaId] = useState(inicial?.response_media_id ?? null)
   const [mediaType, setMediaType] = useState(inicial?.response_media_type ?? null)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -435,7 +435,7 @@ function OptionForm({
           sort_order: ordem,
           is_active: inicial?.is_active ?? true,
           response_body: target === 'INFORMATION' ? resposta || null : null,
-          response_media_path: target === 'INFORMATION' ? mediaPath : null,
+          response_media_id: target === 'INFORMATION' ? mediaId : null,
           response_media_type: target === 'INFORMATION' ? mediaType : null,
         }),
       }),
@@ -446,7 +446,7 @@ function OptionForm({
   const enviarMidia = useMutation({
     mutationFn: (file: File) => uploadMedia(file),
     onSuccess: (r) => {
-      setMediaPath(r.media_path)
+      setMediaId(r.media_id)
       setMediaType(r.media_type)
       setErro(null)
     },
@@ -523,7 +523,7 @@ function OptionForm({
         </p>
       )}
 
-      {target === 'INFORMATION' && mediaPath && (
+      {target === 'INFORMATION' && mediaId && (
         <div style={{ marginBottom: 10 }}>
           <span className="badge">{mediaType}</span>{' '}
           <span className="muted" style={{ fontSize: 12 }}>
@@ -533,7 +533,7 @@ function OptionForm({
             className="secondary"
             style={{ padding: '2px 8px', fontSize: 11 }}
             onClick={() => {
-              setMediaPath(null)
+              setMediaId(null)
               setMediaType(null)
             }}
           >
@@ -553,7 +553,7 @@ function OptionForm({
             {enviarMidia.isPending ? 'enviando…' : 'Anexar à resposta'}
             <input
               type="file"
-              accept="image/*,video/*"
+              accept="image/*,video/*,audio/*"
               style={{ display: 'none' }}
               onChange={(e) => {
                 const f = e.target.files?.[0]

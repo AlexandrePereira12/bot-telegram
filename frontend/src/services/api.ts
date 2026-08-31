@@ -204,11 +204,38 @@ export async function login(
  * multipart, e informá-lo à mão quebra o parse no servidor.
  */
 export async function uploadMedia(file: File): Promise<import('../types').MediaUpload> {
+  return postMedia('/content/media', file)
+}
+
+/**
+ * Envia o anexo de uma resposta no chat.
+ *
+ * Rota separada da do funil por causa da permissão: `/content/media` exige
+ * `campaigns:write`, que OPERATOR e SUPPORT não têm — o clipe do chat
+ * respondia 403 justamente para quem atende.
+ *
+ * `kind: 'voice'` marca gravação feita no navegador: o servidor converte para
+ * OGG/Opus, único formato que vira mensagem de voz no Telegram.
+ */
+export async function uploadConversationMedia(
+  conversationId: number,
+  file: File,
+  kind?: 'voice',
+): Promise<import('../types').MediaUpload> {
+  return postMedia(`/conversations/${conversationId}/media`, file, kind)
+}
+
+async function postMedia(
+  path: string,
+  file: File,
+  kind?: 'voice',
+): Promise<import('../types').MediaUpload> {
   const form = new FormData()
   form.append('file', file)
+  if (kind) form.append('kind', kind)
 
   const token = getAccessToken()
-  const response = await fetch(`${BASE}/api/v1/content/media`, {
+  const response = await fetch(`${BASE}/api/v1${path}`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: form,
@@ -226,4 +253,47 @@ export async function uploadMedia(file: File): Promise<import('../types').MediaU
     throw new ApiError(response.status, detail)
   }
   return response.json()
+}
+
+/**
+ * Descarta um anexo que subiu mas não chegou a ser enviado.
+ *
+ * Sem isso, cada anexo trocado ou gravação descartada deixava uma linha de
+ * mídia no banco sem nenhuma mensagem apontando para ela.
+ */
+export async function discardConversationMedia(
+  conversationId: number,
+  mediaId: number,
+): Promise<void> {
+  await api<void>(`/conversations/${conversationId}/media?media_id=${mediaId}`, {
+    method: 'DELETE',
+  })
+}
+
+/**
+ * Baixa o anexo de uma mensagem como object URL.
+ *
+ * `<img src>` não manda o header Authorization, e a rota é autenticada — daí
+ * buscar por fetch e criar um blob local. Quem chama é responsável por
+ * `URL.revokeObjectURL` ao desmontar, senão o blob fica preso na memória da
+ * aba pelo tempo que ela viver.
+ */
+export async function fetchMessageMedia(
+  conversationId: number,
+  messageId: number,
+  retry = true,
+): Promise<string> {
+  const token = getAccessToken()
+  const response = await fetch(
+    `${BASE}/api/v1/conversations/${conversationId}/messages/${messageId}/media`,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  )
+
+  if (response.status === 401 && retry && (await refreshTokens())) {
+    return fetchMessageMedia(conversationId, messageId, false)
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, 'não foi possível carregar o anexo')
+  }
+  return URL.createObjectURL(await response.blob())
 }

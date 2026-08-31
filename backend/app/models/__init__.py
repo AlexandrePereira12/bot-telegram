@@ -10,6 +10,7 @@ from app.models.content import FunnelContent, QualificationOption
 from app.models.conversation import Conversation, Message
 from app.models.conversion import AuditLog, ConsentRecord, Conversion, IdempotencyKey
 from app.models.lead import Event, Lead
+from app.models.media import MediaObject
 from app.models.operator import Operator
 from app.models.telegram_user import TelegramUser
 
@@ -25,6 +26,7 @@ __all__ = [
     "FunnelContent",
     "IdempotencyKey",
     "Lead",
+    "MediaObject",
     "Message",
     "Operator",
     "QualificationOption",

@@ -12,8 +12,12 @@ x-backend-image: &backend-image
   env_file: [.env]
   restart: unless-stopped
   volumes:
-    # api grava a midia enviada pelo painel; bot e worker leem na hora de
-    # enviar. Um volume so, porque o arquivo nunca sai por HTTP.
+    # LEGADO, so para a migration 0007: a midia passou a viver no PostgreSQL,
+    # e nenhum processo escreve ou le daqui em runtime. O volume continua
+    # montado porque a 0007 importa os arquivos antigos para o banco e ABORTA
+    # se algum estiver faltando. Depois que a migration rodar em todas as
+    # instalacoes, esta linha e o volume nomeado saem — nesta ordem, nunca
+    # antes, sob pena de perder os anexos do historico.
     - media-data:/app/media
   depends_on:
     postgres: {condition: service_healthy}
@@ -115,6 +119,7 @@ services:
     volumes: ["n8n-data:/home/node/.n8n"]
 
 volumes:
+  # Legado da migration 0007 (ver comentario em x-backend-image).
   media-data:
   postgres-data:
   redis-data:

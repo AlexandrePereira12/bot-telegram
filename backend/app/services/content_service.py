@@ -22,7 +22,8 @@ logger = get_logger(__name__)
 @dataclass(frozen=True)
 class ResolvedContent:
     body: str
-    media_path: str | None = None
+    #: Referencia em `media_objects`; os bytes sao lidos na hora do envio.
+    media_id: int | None = None
     media_type: MediaType | None = None
 
 
@@ -33,7 +34,7 @@ class ResolvedOption:
     target: OptionTarget
     #: Resposta propria da opcao; None faz cair no texto generico da etapa.
     response_body: str | None = None
-    response_media_path: str | None = None
+    response_media_id: int | None = None
     response_media_type: MediaType | None = None
 
     def response(self) -> ResolvedContent | None:
@@ -41,7 +42,7 @@ class ResolvedOption:
             return None
         return ResolvedContent(
             body=self.response_body,
-            media_path=self.response_media_path,
+            media_id=self.response_media_id,
             media_type=self.response_media_type,
         )
 
@@ -116,7 +117,7 @@ async def get_content(
     if chosen is None:
         return ResolvedContent(body=_fallback(step))
     return ResolvedContent(
-        body=chosen.body, media_path=chosen.media_path, media_type=chosen.media_type
+        body=chosen.body, media_id=chosen.media_id, media_type=chosen.media_type
     )
 
 
@@ -166,7 +167,7 @@ async def get_options(
             label=r.label,
             target=r.target,
             response_body=r.response_body,
-            response_media_path=r.response_media_path,
+            response_media_id=r.response_media_id,
             response_media_type=r.response_media_type,
         )
         for r in chosen

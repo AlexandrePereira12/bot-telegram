@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.enums import (
+    TERMINAL_STATES,
     ConversationOutcome,
     ConversationStatus,
     EventType,
@@ -21,6 +22,7 @@ from app.models import Conversation, Message, Operator, TelegramUser
 from app.services.conversion_service import register_conversion
 from app.services.event_service import record_event
 from app.services.funnel_service import FunnelError, transition
+from app.services.funnel_service import reopen as reopen_funnel  # ciclo novo, nao transicao
 from app.services.lead_service import get_lead_by_user
 
 logger = get_logger(__name__)
@@ -28,6 +30,15 @@ logger = get_logger(__name__)
 
 class ConversationError(Exception):
     pass
+
+
+class ConversationNotFound(ConversationError):
+    """Conversa inexistente ou de outro tenant.
+
+    Separada do conflito de estado para que a API responda 404 onde o recurso
+    nao existe e 409 onde existe mas a operacao nao cabe — antes as duas
+    coisas chegavam como o mesmo erro e cada rota escolhia um codigo.
+    """
 
 
 async def get_or_create_conversation(
@@ -68,7 +79,7 @@ async def record_message(
     sender_id: int | None = None,
     telegram_message_id: int | None = None,
     message_type: str = "text",
-    media_path: str | None = None,
+    media_id: int | None = None,
     media_type: MediaType | None = None,
 ) -> Message:
     message = Message(
@@ -80,7 +91,7 @@ async def record_message(
         sender_id=sender_id,
         message_type=message_type,
         content=content,
-        media_path=media_path,
+        media_id=media_id,
         media_type=media_type,
     )
     session.add(message)
@@ -111,7 +122,7 @@ async def assign(
 ) -> Conversation:
     conversation = await session.get(Conversation, conversation_id)
     if conversation is None or conversation.tenant_id != settings.tenant_id:
-        raise ConversationError("conversa inexistente")
+        raise ConversationNotFound("conversa inexistente")
     if conversation.status == ConversationStatus.CLOSED:
         raise ConversationError("conversa encerrada")
     if conversation.assigned_to is not None and conversation.assigned_to != operator.id:
@@ -151,7 +162,7 @@ async def release(
     """
     conversation = await session.get(Conversation, conversation_id)
     if conversation is None or conversation.tenant_id != settings.tenant_id:
-        raise ConversationError("conversa inexistente")
+        raise ConversationNotFound("conversa inexistente")
 
     conversation.assigned_to = None
     conversation.assigned_at = None
@@ -175,6 +186,7 @@ async def close_with_outcome(
     reason: str | None = None,
     value: float | None = None,
     currency: str | None = None,
+    farewell: str | None = None,
 ) -> Conversation:
     """Encerra o atendimento registrando o desfecho.
 
@@ -186,12 +198,27 @@ async def close_with_outcome(
 
     Depois de encerrada, uma mensagem nova do lead abre outro ciclo — ver
     `funnel_service.reopen`.
+
+    `farewell` e a ultima mensagem enviada ao lead. Fica registrada aqui, antes
+    da mudanca de status, para que o historico mostre a despedida dentro do
+    atendimento que ela encerrou — e nao solta depois dele. O envio em si e do
+    worker, como qualquer outra resposta do operador.
     """
     conversation = await session.get(Conversation, conversation_id)
     if conversation is None or conversation.tenant_id != settings.tenant_id:
-        raise ConversationError("conversa inexistente")
+        raise ConversationNotFound("conversa inexistente")
     if conversation.status == ConversationStatus.CLOSED:
         raise ConversationError("atendimento ja encerrado")
+
+    if farewell and farewell.strip():
+        await record_message(
+            session,
+            conversation,
+            direction=MessageDirection.OUTBOUND,
+            sender_type=SenderType.OPERATOR,
+            sender_id=operator.id,
+            content=farewell.strip(),
+        )
 
     lead = await get_lead_by_user(session, conversation.telegram_user_id)
 
@@ -239,6 +266,71 @@ async def close_with_outcome(
             "outcome": outcome.value,
             "reason": reason,
             "value": value,
+        },
+    )
+    return conversation
+
+
+async def reopen(
+    session: AsyncSession, conversation_id: int, operator: Operator
+) -> Conversation:
+    """Reabre um atendimento encerrado, sem esperar o lead escrever.
+
+    Existe porque encerrar e uma decisao humana e humano erra: fechar no
+    atendimento errado, marcar o desfecho trocado, ou o lead voltar por outro
+    canal. Sem isso a unica saida era esperar uma mensagem nova, e o ciclo
+    perdido virava um atendimento a mais nas metricas.
+
+    O que a reabertura faz e desfazer o encerramento — o desfecho volta a ser
+    NULL e a conversa retorna para a fila como OPEN, sem atribuicao: quem
+    reabriu nao necessariamente vai atender. O que ela NAO faz e apagar
+    historico: as mensagens continuam, e uma conversao ja registrada continua
+    valendo. Encerrar de novo como convertido cai no mesmo `external_id`
+    (`manual:<id>`) e nao gera segunda conversao — reabrir nao e caminho para
+    contar a mesma venda duas vezes.
+
+    O funil tambem volta, quando o lead permite: quem foi reprovado no age
+    gate ou nunca aceitou os termos segue de fora, e nesse caso so a conversa
+    reabre.
+    """
+    conversation = await session.get(Conversation, conversation_id)
+    if conversation is None or conversation.tenant_id != settings.tenant_id:
+        raise ConversationNotFound("conversa inexistente")
+    if conversation.status != ConversationStatus.CLOSED:
+        raise ConversationError("atendimento nao esta encerrado")
+
+    outcome_anterior = conversation.outcome.value if conversation.outcome else None
+
+    conversation.status = ConversationStatus.OPEN
+    conversation.assigned_to = None
+    conversation.assigned_at = None
+    conversation.ended_at = None
+    conversation.outcome = None
+    conversation.outcome_reason = None
+    conversation.closed_by_operator_id = None
+
+    lead = await get_lead_by_user(session, conversation.telegram_user_id)
+    user = await session.get(TelegramUser, conversation.telegram_user_id)
+    funil_reaberto = False
+    if user is not None and FunnelState(user.current_state) in TERMINAL_STATES:
+        try:
+            await reopen_funnel(session, user, lead)
+            funil_reaberto = True
+        except FunnelError as exc:
+            logger.info(
+                "conversa reaberta sem reabrir o funil",
+                extra={"event": "FUNNEL_REOPEN_SKIPPED", "reason": str(exc)},
+            )
+
+    await record_event(
+        session,
+        EventType.HUMAN_SUPPORT_REOPENED,
+        telegram_user_id=conversation.telegram_user_id,
+        lead_id=lead.id if lead else None,
+        metadata={
+            "operator_id": operator.id,
+            "previous_outcome": outcome_anterior,
+            "funnel_reopened": funil_reaberto,
         },
     )
     return conversation

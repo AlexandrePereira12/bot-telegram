@@ -66,6 +66,7 @@ class EventType(StrEnum):
     HUMAN_SUPPORT_ASSIGNED = "HUMAN_SUPPORT_ASSIGNED"
     HUMAN_SUPPORT_RELEASED = "HUMAN_SUPPORT_RELEASED"
     HUMAN_SUPPORT_CLOSED = "HUMAN_SUPPORT_CLOSED"
+    HUMAN_SUPPORT_REOPENED = "HUMAN_SUPPORT_REOPENED"
     FUNNEL_REOPENED = "FUNNEL_REOPENED"
     MESSAGE_SENT = "MESSAGE_SENT"
     MESSAGE_RECEIVED = "MESSAGE_RECEIVED"
@@ -166,5 +167,15 @@ class OptionTarget(StrEnum):
 
 
 class MediaType(StrEnum):
+    """Tipo de midia trocada no funil e no atendimento.
+
+    VOICE e AUDIO sao separados porque o Telegram os trata como coisas
+    diferentes: voz e OGG/Opus e aparece como bolha de audio gravado, audio e
+    arquivo de musica com titulo e duracao. Enviar um pelo metodo do outro
+    falha ou some com a forma de onda.
+    """
+
     PHOTO = "photo"
     VIDEO = "video"
+    VOICE = "voice"
+    AUDIO = "audio"

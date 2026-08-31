@@ -1,14 +1,44 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 import { toggleTheme, useTheme } from '../theme'
 
-export function Card({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="card">
+/** Indicador.
+ *
+ *  `hint` existe porque número solto não diz a que recorte pertence: no mesmo
+ *  painel convivem métricas do período e métricas do momento, e sem a linha de
+ *  contexto as duas parecem a mesma coisa. `to` transforma o cartão em atalho
+ *  para a tela que detalha aquele número. */
+export function Card({
+  label,
+  value,
+  hint,
+  to,
+  tone,
+}: {
+  label: string
+  value: ReactNode
+  hint?: ReactNode
+  to?: string
+  tone?: 'ok' | 'warn' | 'danger'
+}) {
+  const corpo = (
+    <>
       <div className="label">{label}</div>
       <div className="value">{value}</div>
-    </div>
+      {hint !== undefined && <div className="card-hint">{hint}</div>}
+    </>
   )
+  const classe = `card${tone ? ` ${tone}` : ''}`
+
+  if (to) {
+    return (
+      <Link className={`${classe} card-link`} to={to}>
+        {corpo}
+      </Link>
+    )
+  }
+  return <div className={classe}>{corpo}</div>
 }
 
 export function Panel({ title, children }: { title: string; children: ReactNode }) {
@@ -60,7 +90,7 @@ export function duration(seconds: number | null | undefined): string {
   if (!seconds) return '—'
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
-  if (h > 24) return `${Math.floor(h / 24)}d ${h % 24}h`
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`
   return h > 0 ? `${h}h ${m}min` : `${m}min`
 }
 
@@ -81,8 +111,11 @@ const STATUS_CLASS: Record<string, string> = {
   ARCHIVED: 'danger',
 }
 
-export function StatusBadge({ status }: { status: string }) {
-  return <span className={`badge ${STATUS_CLASS[status] ?? ''}`}>{status}</span>
+/** `label` traduz o código sem mudar a cor, que continua vindo do valor cru.
+ *  Sem a prop o badge segue exibindo o código — é o que as telas que não têm
+ *  tradução esperam. */
+export function StatusBadge({ status, label }: { status: string; label?: string }) {
+  return <span className={`badge ${STATUS_CLASS[status] ?? ''}`}>{label ?? status}</span>
 }
 
 /** Alterna claro/escuro. A escolha fica no localStorage; sem escolha salva,
@@ -226,4 +259,120 @@ export function initials(name: string | null, email: string): string {
   const partes = base.split(/[\s._-]+/).filter(Boolean)
   const letras = partes.length > 1 ? partes[0][0] + partes[1][0] : base.slice(0, 2)
   return letras.toUpperCase()
+}
+
+/** Seletor de janela de análise.
+ *
+ *  O mesmo controle no Dashboard, no Funil e no Analytics: trocar o período
+ *  em uma tela e não achar o controle na outra é o que fazia o número parecer
+ *  incoerente entre elas. */
+export function PeriodPicker({
+  days,
+  onChange,
+  options = [7, 30, 90],
+}: {
+  days: number
+  onChange: (days: number) => void
+  options?: number[]
+}) {
+  return (
+    <div className="period-picker" role="group" aria-label="período">
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          className={option === days ? '' : 'secondary'}
+          aria-pressed={option === days}
+          onClick={() => onChange(option)}
+        >
+          {option} dias
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Paginação por offset.
+ *
+ *  A API devolve lista sem total, então a existência de próxima página é
+ *  inferida da página cheia. Sem isto a tela trava nos primeiros 100 registros
+ *  sem nada indicando que existe mais coisa. */
+export function Pager({
+  page,
+  pageSize,
+  count,
+  onChange,
+}: {
+  page: number
+  pageSize: number
+  count: number
+  onChange: (page: number) => void
+}) {
+  const primeiro = page * pageSize + 1
+  const ultimo = page * pageSize + count
+  const temProxima = count === pageSize
+
+  if (page === 0 && !temProxima) {
+    return <p className="pager-info">{count === 0 ? 'nenhum registro' : `${count} registro${count > 1 ? 's' : ''}`}</p>
+  }
+
+  return (
+    <div className="pager">
+      <span className="pager-info">
+        {count === 0 ? 'nenhum registro nesta página' : `${primeiro}–${ultimo}`}
+      </span>
+      <button
+        type="button"
+        className="secondary"
+        disabled={page === 0}
+        onClick={() => onChange(page - 1)}
+      >
+        ← anterior
+      </button>
+      <button
+        type="button"
+        className="secondary"
+        disabled={!temProxima}
+        onClick={() => onChange(page + 1)}
+      >
+        próxima →
+      </button>
+    </div>
+  )
+}
+
+/** Resumo dos filtros aplicados, cada um removível.
+ *
+ *  Filtro que só existe dentro de um `select` some da vista quando a lista é
+ *  rolada; a lista vazia então parece defeito, e não recorte. */
+export function FilterChips({
+  chips,
+  onClear,
+}: {
+  chips: { key: string; label: string; onRemove: () => void }[]
+  onClear: () => void
+}) {
+  if (chips.length === 0) return null
+
+  return (
+    <div className="chips">
+      <span className="muted">filtros:</span>
+      {chips.map((chip) => (
+        <span className="chip" key={chip.key}>
+          {chip.label}
+          <button
+            type="button"
+            className="chip-remove"
+            onClick={chip.onRemove}
+            aria-label={`remover filtro ${chip.label}`}
+          >
+            ✕
+          </button>
+        </span>
+      ))}
+      <button type="button" className="link" onClick={onClear}>
+        limpar tudo
+      </button>
+    </div>
+  )
 }

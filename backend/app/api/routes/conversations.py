@@ -1,7 +1,18 @@
 """Conversas e atendimento humano."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep, client_ip, require
 from app.core.config import settings
@@ -13,10 +24,11 @@ from app.schemas import (
     CloseRequest,
     ConversationDetail,
     ConversationOut,
+    MediaUploadOut,
     MessageOut,
     OperatorReply,
 )
-from app.services import conversation_service
+from app.services import conversation_service, media_service
 from app.services.event_service import record_audit
 from app.services.lead_service import get_lead_by_user
 
@@ -81,6 +93,8 @@ async def assign_conversation(
 ) -> Conversation:
     try:
         conversation = await conversation_service.assign(session, conversation_id, operator)
+    except conversation_service.ConversationNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except conversation_service.ConversationError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -106,8 +120,10 @@ async def release_conversation(
     """Devolve para a automacao sem encerrar — o atendimento segue aberto."""
     try:
         conversation = await conversation_service.release(session, conversation_id, operator)
-    except conversation_service.ConversationError as exc:
+    except conversation_service.ConversationNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except conversation_service.ConversationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     await record_audit(
         session,
@@ -133,8 +149,17 @@ async def close_conversation(
 
     Desfecho convertido gera a conversao (dedup por conversa, entao clicar
     duas vezes nao duplica a metrica). Depois de encerrado, uma mensagem nova
-    do lead abre um ciclo novo de atendimento.
+    do lead abre um ciclo novo de atendimento — ou o operador reabre este
+    mesmo pelo `/reopen`.
+
+    A despedida, quando informada, e registrada dentro do atendimento e
+    enfileirada apos o commit: mensagem enviada ao lead sem o encerramento ter
+    sido gravado seria o pior dos dois mundos.
     """
+    from app.workers.queue import enqueue
+
+    user = await _telegram_user(session, conversation_id)
+
     try:
         conversation = await conversation_service.close_with_outcome(
             session,
@@ -144,7 +169,10 @@ async def close_conversation(
             reason=payload.reason,
             value=payload.value,
             currency=payload.currency,
+            farewell=payload.farewell if user is not None and not user.is_blocked else None,
         )
+    except conversation_service.ConversationNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except conversation_service.ConversationError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -155,6 +183,47 @@ async def close_conversation(
         resource_type="conversation",
         resource_id=conversation.id,
         metadata={"outcome": payload.outcome.value, "value": payload.value},
+        ip_hash=hash_ip(client_ip(request)),
+    )
+    await session.commit()
+
+    despedida = payload.farewell.strip() if payload.farewell else ""
+    if despedida and user is not None and not user.is_blocked:
+        await enqueue("send_telegram_message", telegram_id=user.telegram_id, text=despedida)
+    elif despedida:
+        logger.warning(
+            "despedida nao enviada: usuario indisponivel",
+            extra={"event": "FAREWELL_SKIPPED", "conversation_id": conversation_id},
+        )
+    return conversation
+
+
+@router.post("/{conversation_id}/reopen", response_model=ConversationOut)
+async def reopen_conversation(
+    conversation_id: int,
+    request: Request,
+    session: SessionDep,
+    operator: Operator = ConvWrite,
+) -> Conversation:
+    """Reabre um atendimento encerrado e devolve para a fila.
+
+    Sem isso, corrigir um encerramento errado dependia de o lead escrever de
+    novo. O desfecho volta a ser NULL, o historico permanece e a conversao ja
+    registrada continua valendo.
+    """
+    try:
+        conversation = await conversation_service.reopen(session, conversation_id, operator)
+    except conversation_service.ConversationNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except conversation_service.ConversationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    await record_audit(
+        session,
+        actor_id=operator.id,
+        action="reopen",
+        resource_type="conversation",
+        resource_id=conversation.id,
         ip_hash=hash_ip(client_ip(request)),
     )
     await session.commit()
@@ -205,7 +274,7 @@ async def send_message(
         sender_id=operator.id,
         content=payload.content,
         message_type=payload.media_type.value if payload.media_type else "text",
-        media_path=payload.media_path,
+        media_id=payload.media_id,
         media_type=payload.media_type,
     )
     await record_audit(
@@ -222,9 +291,165 @@ async def send_message(
     await enqueue(
         "send_telegram_message",
         telegram_id=user.telegram_id,
-        media_path=payload.media_path,
-        media_type=payload.media_type.value if payload.media_type else None,
+        media_id=payload.media_id,
         text=payload.content,
         message_id=message.id,
     )
     return message
+
+
+async def _telegram_user(session: AsyncSession, conversation_id: int) -> TelegramUser | None:
+    """Usuario do Telegram por tras da conversa, se ela existir neste tenant."""
+    conversation = await session.get(Conversation, conversation_id)
+    if conversation is None or conversation.tenant_id != settings.tenant_id:
+        return None
+    return await session.get(TelegramUser, conversation.telegram_user_id)
+
+
+@router.post(
+    "/{conversation_id}/media",
+    response_model=MediaUploadOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_conversation_media(
+    conversation_id: int,
+    request: Request,
+    session: SessionDep,
+    file: UploadFile = File(...),
+    kind: str = Form(default=""),
+    operator: Operator = ConvWrite,
+) -> MediaUploadOut:
+    """Recebe o anexo que o operador vai mandar no chat.
+
+    Existe separado de `/content/media` por causa da autorizacao: aquele exige
+    `campaigns:write`, que so ADMIN e MANAGER tem — ou seja, o clipe do chat
+    respondia 403 justamente para OPERATOR e SUPPORT, que sao quem atende.
+    Aqui a guarda e `conversations:write`, e o alcance e o chat: quem anexa uma
+    imagem numa conversa nao ganha com isso o direito de editar o funil.
+
+    `kind=voice` marca gravacao feita no navegador, que chega em WebM/Opus ou
+    MP4/AAC e precisa virar OGG/Opus antes de existir como mensagem de voz.
+    """
+    conversation = await session.get(Conversation, conversation_id)
+    if conversation is None or conversation.tenant_id != settings.tenant_id:
+        raise HTTPException(status_code=404, detail="conversa nao encontrada")
+
+    content = await file.read()
+    try:
+        if kind == "voice":
+            content = await media_service.transcode_voice(content)
+        media = await media_service.save(session, content)
+    except media_service.MediaError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+    await record_audit(
+        session,
+        actor_id=operator.id,
+        action="upload",
+        resource_type="media",
+        resource_id=media.id,
+        metadata={
+            "type": media.media_type.value,
+            "bytes": media.size_bytes,
+            "conversation_id": conversation_id,
+        },
+        ip_hash=hash_ip(client_ip(request)),
+    )
+    await session.commit()
+    return MediaUploadOut(
+        media_id=media.id, media_type=media.media_type, size_bytes=media.size_bytes
+    )
+
+
+@router.get("/{conversation_id}/messages/{message_id}/media")
+async def get_message_media(
+    conversation_id: int,
+    message_id: int,
+    session: SessionDep,
+    _: Operator = ConvRead,
+) -> Response:
+    """Entrega o anexo de uma mensagem para o painel.
+
+    O endereco e o id da mensagem, nunca o do objeto de midia: a autorizacao
+    sai por conversa, e ninguem varre `media_objects` por id sequencial. O
+    conteudo vem do banco — nao ha volume publicado, nem arquivo em disco.
+    """
+    message = await session.get(Message, message_id)
+    if (
+        message is None
+        or message.tenant_id != settings.tenant_id
+        or message.conversation_id != conversation_id
+        or message.media_id is None
+    ):
+        raise HTTPException(status_code=404, detail="anexo nao encontrado")
+
+    media = await media_service.load(session, message.media_id)
+    if media is None:
+        logger.warning(
+            "anexo referenciado nao existe mais",
+            extra={"event": "MEDIA_NOT_FOUND", "message_id": message_id},
+        )
+        raise HTTPException(status_code=404, detail="anexo indisponivel")
+
+    return Response(
+        content=media.content,
+        media_type=media.content_type,
+        # Sem cache no disco do navegador: o painel promete que desativar um
+        # operador tem efeito imediato, e anexo cacheado continuaria abrindo
+        # depois do acesso cortado. O custo e um fetch por abertura da
+        # conversa — o refetch de 10s nao remonta a bolha, entao nao repete.
+        headers={"Cache-Control": "private, no-store"},
+    )
+
+
+@router.delete("/{conversation_id}/media", status_code=status.HTTP_204_NO_CONTENT)
+async def discard_conversation_media(
+    conversation_id: int,
+    media_id: int,
+    request: Request,
+    session: SessionDep,
+    operator: Operator = ConvWrite,
+) -> None:
+    """Descarta um anexo que subiu mas nao foi enviado.
+
+    Sem isso, cada anexo trocado ou cada gravacao descartada deixava uma linha
+    de midia no banco sem nenhuma mensagem apontando para ela — peso que so
+    cresce e que ninguem sabe distinguir do que esta em uso.
+
+    Anexo ja referenciado por uma mensagem nunca e removido: apagar a midia
+    de uma mensagem entregue deixaria a conversa com um buraco no historico.
+    """
+    conversation = await session.get(Conversation, conversation_id)
+    if conversation is None or conversation.tenant_id != settings.tenant_id:
+        raise HTTPException(status_code=404, detail="conversa nao encontrada")
+
+    em_uso = (
+        await session.execute(
+            select(Message.id)
+            .where(
+                Message.tenant_id == settings.tenant_id,
+                Message.media_id == media_id,
+            )
+            .limit(1)
+        )
+    ).first()
+    if em_uso is not None:
+        raise HTTPException(status_code=409, detail="anexo ja enviado em uma mensagem")
+
+    # `delete` so encontra midia deste tenant, entao id de outra empresa cai
+    # aqui como inexistente em vez de ser apagado.
+    if not await media_service.delete(session, media_id):
+        raise HTTPException(status_code=404, detail="anexo nao encontrado")
+
+    await record_audit(
+        session,
+        actor_id=operator.id,
+        action="discard",
+        resource_type="media",
+        resource_id=media_id,
+        metadata={"conversation_id": conversation_id},
+        ip_hash=hash_ip(client_ip(request)),
+    )
+    await session.commit()

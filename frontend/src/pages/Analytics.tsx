@@ -10,13 +10,19 @@ import {
   YAxis,
 } from 'recharts'
 
-import { Empty, ErrorBox, Loading, Panel, money, percent } from '../components'
+import {
+  Empty,
+  ErrorBox,
+  Loading,
+  Panel,
+  PeriodPicker,
+  money,
+  percent,
+} from '../components'
 import { funnelLabel } from '../labels'
 import { api } from '../services/api'
 import { useChartTokens } from '../theme'
 import type { CampaignPerformance, FunnelStep, TimeseriesPoint } from '../types'
-
-const PERIODS = [7, 30, 90]
 
 interface AdPerformance {
   ad_id: number
@@ -54,19 +60,14 @@ export default function Analytics() {
 
   return (
     <>
-      <h1>Analytics</h1>
-      <p className="page-sub">Desempenho por campanha, anúncio e período</p>
-
-      <div className="toolbar">
-        {PERIODS.map((period) => (
-          <button
-            key={period}
-            className={period === days ? '' : 'secondary'}
-            onClick={() => setDays(period)}
-          >
-            {period} dias
-          </button>
-        ))}
+      <div className="section-head">
+        <div>
+          <h1>Analytics</h1>
+          <p className="page-sub">Desempenho por campanha, anúncio e período</p>
+        </div>
+        {/* Mesmo controle do Dashboard e do Funil: o seletor de período muda
+            de forma entre as telas fazia parecer que o recorte também mudava. */}
+        <PeriodPicker days={days} onChange={setDays} />
       </div>
 
       <Panel title="Abandono por etapa">

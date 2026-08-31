@@ -293,7 +293,7 @@ class ConversationOut(ORMModel):
 class MessageOut(ORMModel):
     id: int
     conversation_id: int
-    media_path: str | None = None
+    media_id: int | None = None
     media_type: MediaType | None = None
     direction: MessageDirection
     sender_type: SenderType
@@ -313,12 +313,12 @@ class OperatorReply(BaseModel):
     """Resposta do operador. Texto vazio e aceito quando ha midia anexada."""
 
     content: str = Field(default="", max_length=4000)
-    media_path: str | None = Field(default=None, max_length=255)
+    media_id: int | None = Field(default=None, ge=1)
     media_type: MediaType | None = None
 
     @model_validator(mode="after")
     def _exige_conteudo(self) -> "OperatorReply":
-        if not self.content.strip() and not self.media_path:
+        if not self.content.strip() and self.media_id is None:
             raise ValueError("informe um texto ou anexe um arquivo")
         return self
 
@@ -330,6 +330,9 @@ class CloseRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=255)
     value: float | None = Field(default=None, ge=0)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
+    #: Ultima mensagem enviada ao lead junto do encerramento. Opcional: fechar
+    #: um atendimento que o lead abandonou nao deve obrigar a escrever nada.
+    farewell: str | None = Field(default=None, max_length=4000)
 
 
 # -------------------------------------------------------------------- webhook
@@ -378,7 +381,7 @@ CompliantText = Annotated[str, AfterValidator(_validate_compliance)]
 class FunnelContentIn(BaseModel):
     step: FunnelStep
     body: CompliantText = Field(min_length=1, max_length=4000)
-    media_path: str | None = Field(default=None, max_length=255)
+    media_id: int | None = Field(default=None, ge=1)
     media_type: MediaType | None = None
 
 
@@ -387,7 +390,7 @@ class FunnelContentOut(ORMModel):
     campaign_id: int | None
     step: FunnelStep
     body: str
-    media_path: str | None
+    media_id: int | None
     media_type: MediaType | None
     updated_at: datetime
 
@@ -397,7 +400,7 @@ class ResolvedStepOut(BaseModel):
 
     step: FunnelStep
     body: str
-    media_path: str | None = None
+    media_id: int | None = None
     media_type: MediaType | None = None
     origin: Literal["campanha", "global", "codigo"]
     editable_per_campaign: bool
@@ -412,7 +415,7 @@ class QualificationOptionIn(BaseModel):
     #: Resposta que o bot envia ao escolherem esta opcao. Vazio faz cair na
     #: mensagem generica da etapa INFORMATION.
     response_body: CompliantText | None = Field(default=None, max_length=4000)
-    response_media_path: str | None = Field(default=None, max_length=255)
+    response_media_id: int | None = Field(default=None, ge=1)
     response_media_type: MediaType | None = None
 
 
@@ -425,11 +428,14 @@ class QualificationOptionOut(ORMModel):
     sort_order: int
     is_active: bool
     response_body: str | None = None
-    response_media_path: str | None = None
+    response_media_id: int | None = None
     response_media_type: MediaType | None = None
 
 
 class MediaUploadOut(BaseModel):
-    media_path: str
+    """Midia recem-gravada. `media_id` e a referencia usada em toda parte —
+    caminho de arquivo deixou de existir quando os bytes foram para o banco."""
+
+    media_id: int
     media_type: MediaType
     size_bytes: int
