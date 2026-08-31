@@ -4,9 +4,16 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.keyboards import age_keyboard, qualification_keyboard, support_keyboard
+from app.bot import texts
+from app.bot.keyboards import (
+    age_keyboard,
+    humano_keyboard,
+    qualification_keyboard,
+    support_keyboard,
+)
 from app.core.config import settings
 from app.core.enums import (
+    EventType,
     FunnelState,
     FunnelStep,
     MessageDirection,
@@ -15,8 +22,15 @@ from app.core.enums import (
 )
 from app.core.logging import get_logger
 from app.models import Lead, TelegramUser
-from app.services import content_service, conversation_service, funnel_service, lead_service
+from app.services import (
+    ai_service,
+    content_service,
+    conversation_service,
+    funnel_service,
+    lead_service,
+)
 from app.services.content_service import ResolvedContent
+from app.services.event_service import record_event
 
 router = Router(name="funnel")
 logger = get_logger(__name__)
@@ -151,9 +165,23 @@ async def on_interest(callback: CallbackQuery, session: AsyncSession) -> None:
     target = await funnel_service.select_interest(session, user, lead, option)
 
     if target == OptionTarget.HUMAN_SUPPORT:
-        await _answer(
-            callback, session, user, await _content(session, FunnelStep.HUMAN_SUPPORT, lead)
-        )
+        # Com a IA ligada, o lead cai no atendimento automatico com a saida
+        # para gente sempre visivel; sem ela, vai direto para a fila.
+        if await ai_service.disponivel(session):
+            await _answer(
+                callback,
+                session,
+                user,
+                await _content(session, FunnelStep.AI_SUPPORT, lead),
+                markup=humano_keyboard(),
+            )
+        else:
+            await _answer(
+                callback,
+                session,
+                user,
+                await _content(session, FunnelStep.HUMAN_SUPPORT, lead),
+            )
     else:
         options = await content_service.get_options(session, campaign_id)
         # Resposta propria da opcao escolhida; sem ela, cai na mensagem
@@ -170,6 +198,57 @@ async def on_interest(callback: CallbackQuery, session: AsyncSession) -> None:
                 session, FunnelStep.INFORMATION, lead, interest=option.label
             )
         await _answer(callback, session, user, resposta, markup=support_keyboard(options))
+
+
+@router.callback_query(F.data == "humano:pedir")
+async def on_pedido_humano(callback: CallbackQuery, session: AsyncSession) -> None:
+    """Botao de escape mostrado em toda resposta da IA.
+
+    Um clique conta como pedido; o segundo tira a IA de cena. O primeiro nao
+    escala porque foi assim que o lead chegou ao atendimento — se um toque
+    bastasse, a IA nunca chegaria a responder.
+    """
+    user, lead = await _load(callback, session)
+    state = FunnelState(user.current_state)
+    if state != FunnelState.AI_SUPPORT:
+        await callback.answer()
+        return
+
+    conversation = await conversation_service.get_or_create_conversation(session, user.id)
+    await record_event(
+        session,
+        EventType.AI_HANDOFF_REQUESTED,
+        telegram_user_id=user.id,
+        lead_id=lead.id if lead else None,
+        metadata={"origem": "botao"},
+    )
+
+    if not await ai_service.deve_escalar(session, user, conversation):
+        # Ainda no primeiro pedido: a IA segue atendendo, mas o lead precisa
+        # saber que o clique fez algo.
+        await _answer(
+            callback,
+            session,
+            user,
+            texts.AI_AINDA_ATENDENDO,
+            markup=humano_keyboard(),
+        )
+        return
+
+    try:
+        await funnel_service.transition(
+            session,
+            user,
+            FunnelState.HUMAN_SUPPORT,
+            lead=lead,
+            event=EventType.HUMAN_SUPPORT_REQUESTED,
+        )
+    except funnel_service.FunnelError:
+        logger.info("pedido de humano sem transicao de funil", extra={"event": "AI_ESCALATED"})
+
+    await _answer(
+        callback, session, user, await _content(session, FunnelStep.HUMAN_SUPPORT, lead)
+    )
 
 
 __all__ = ["router", "conversation_service", "MessageDirection", "SenderType"]

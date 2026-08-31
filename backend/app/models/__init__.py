@@ -9,6 +9,7 @@ from app.models.campaign import Ad, AdSet, Campaign, TrackingToken
 from app.models.content import FunnelContent, QualificationOption
 from app.models.conversation import Conversation, Message
 from app.models.conversion import AuditLog, ConsentRecord, Conversion, IdempotencyKey
+from app.models.integration import AiIntegration
 from app.models.lead import Event, Lead
 from app.models.media import MediaObject
 from app.models.operator import Operator
@@ -16,6 +17,7 @@ from app.models.telegram_user import TelegramUser
 
 __all__ = [
     "Ad",
+    "AiIntegration",
     "AdSet",
     "AuditLog",
     "Campaign",

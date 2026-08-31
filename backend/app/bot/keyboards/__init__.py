@@ -43,3 +43,16 @@ def support_keyboard(options: list[ResolvedOption]) -> InlineKeyboardMarkup | No
     builder = InlineKeyboardBuilder()
     builder.button(text=humano.label, callback_data=f"interest:{humano.key}")
     return builder.as_markup()
+
+
+def humano_keyboard() -> InlineKeyboardMarkup:
+    """Saida para uma pessoa, presente em toda resposta da IA.
+
+    Callback proprio (`humano:pedir`), e nao `interest:<key>`: o handler de
+    qualificacao so aceita clique em QUALIFICATION ou INFORMATION, entao o
+    botao seria descartado em silencio durante o atendimento — clique sem
+    efeito e a pior versao de um caminho de escape.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Falar com uma pessoa", callback_data="humano:pedir")
+    return builder.as_markup()

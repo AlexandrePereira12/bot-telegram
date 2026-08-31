@@ -6,6 +6,7 @@ import {
   ConfirmDialog,
   Empty,
   ErrorBox,
+  Icon,
   Loading,
   Panel,
   StatusBadge,
@@ -46,6 +47,15 @@ const MOTIVOS: Record<ConversationOutcome, string[]> = {
     'contato duplicado',
     'só queria informação',
   ],
+}
+
+/** Quem escreveu. "ai" precisa de rótulo próprio: sem ele, a bolha da IA
+ *  aparece marcada apenas por cor, e cor sozinha não é informação. */
+const REMETENTE: Record<string, string> = {
+  bot: 'automação',
+  user: 'lead',
+  operator: 'operador',
+  ai: 'IA',
 }
 
 const ROTULO_MIDIA: Record<MediaType, string> = {
@@ -118,6 +128,12 @@ function AnexoMensagem({
   return <audio className="anexo-audio" src={url} controls />
 }
 
+/** Navegador sem MediaRecorder, ou página sem HTTPS (onde `getUserMedia` não
+ *  existe): em vez de um botão que falha ao clicar, o lugar dele fica com o
+ *  botão de enviar desabilitado — some o microfone, não o compositor. */
+const GRAVACAO_SUPORTADA =
+  typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
+
 /**
  * Gravação de áudio no próprio painel.
  *
@@ -140,10 +156,6 @@ function Gravador({
   const recorder = useRef<MediaRecorder | null>(null)
   const pedacos = useRef<Blob[]>([])
 
-  // Navegador sem MediaRecorder (ou página sem HTTPS, onde getUserMedia não
-  // existe): o botão simplesmente não aparece, em vez de falhar ao clicar.
-  const suportado =
-    typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
 
   useEffect(() => {
     if (!gravando) return
@@ -158,8 +170,6 @@ function Gravador({
       recorder.current?.stream.getTracks().forEach((t) => t.stop())
     }
   }, [])
-
-  if (!suportado) return null
 
   const iniciar = async () => {
     setErro(null)
@@ -204,19 +214,33 @@ function Gravador({
     setGravando(false)
   }
 
+  // Ordem dos controles copiada dos aplicativos de mensagem: descartar à
+  // esquerda, tempo no meio, confirmar à direita. É onde a mão já procura.
   if (gravando) {
     return (
       <span className="gravador">
+        <button
+          type="button"
+          className="chat-acao descartar"
+          onClick={cancelar}
+          aria-label="descartar gravação"
+          title="descartar gravação"
+        >
+          <Icon name="trash" />
+        </button>
         <span className="gravando-pulso" aria-hidden="true" />
         <span className="gravando-tempo">
           {String(Math.floor(segundos / 60)).padStart(2, '0')}:
           {String(segundos % 60).padStart(2, '0')}
         </span>
-        <button type="button" onClick={parar} title="parar e anexar o áudio">
-          parar
-        </button>
-        <button type="button" className="secondary" onClick={cancelar}>
-          descartar
+        <button
+          type="button"
+          className="chat-acao principal"
+          onClick={parar}
+          aria-label="parar e anexar o áudio"
+          title="parar e anexar o áudio"
+        >
+          <Icon name="stop" />
         </button>
       </span>
     )
@@ -226,18 +250,15 @@ function Gravador({
     <>
       <button
         type="button"
-        className="secondary"
+        className="chat-acao"
         onClick={iniciar}
         disabled={disabled || enviando}
+        aria-label="gravar áudio"
         title="gravar áudio"
       >
-        {enviando ? '…' : '🎤'}
+        <Icon name={enviando ? 'spinner' : 'mic'} className={enviando ? 'state-spinner' : undefined} />
       </button>
-      {erro && (
-        <span className="muted" style={{ fontSize: 11 }}>
-          {erro}
-        </span>
-      )}
+      {erro && <span className="chat-erro muted">{erro}</span>}
     </>
   )
 }
@@ -380,6 +401,9 @@ export default function Conversations() {
   const abertas = (fila.data ?? []).filter((c) => c.status !== 'CLOSED')
   const aberta = detail.data && detail.data.status !== 'CLOSED'
   const minha = detail.data?.assigned_to === me.data?.id
+  // Sem texto e sem anexo não há o que enviar: o lugar do botão fica com o
+  // microfone, como em qualquer aplicativo de mensagem.
+  const podeEnviar = Boolean(minha && (reply.trim() || anexo))
 
   return (
     <>
@@ -568,7 +592,7 @@ export default function Conversations() {
                 )}
                 {m.content}
                 <span className="meta">
-                  {m.sender_type} · {datetime(m.created_at)}
+                  {REMETENTE[m.sender_type] ?? m.sender_type} · {datetime(m.created_at)}
                 </span>
               </div>
             ))}
@@ -598,58 +622,73 @@ export default function Conversations() {
                 </div>
               )}
 
+              {/* Barra de composição no formato que todo mundo já conhece: o
+                  clipe dentro do campo, e um botão redondo à direita que é
+                  microfone enquanto não há o que enviar e vira avião assim que
+                  há — dois botões concorrendo pelo mesmo lugar é o que faz
+                  errar o alvo no celular. */}
               <form
-                style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}
+                className="chat-compositor"
                 onSubmit={(e) => {
                   e.preventDefault()
                   send.mutate(detail.data!.id)
                 }}
               >
-                <input
-                  value={reply}
-                  onChange={(e) => setReply(e.target.value)}
-                  placeholder={
-                    minha
-                      ? anexo
-                        ? 'legenda (opcional)'
-                        : 'responder…'
-                      : 'assuma a conversa para poder responder'
-                  }
-                  disabled={!minha}
-                />
-                <label
-                  className="btn secondary"
-                  style={{
-                    cursor: minha ? 'pointer' : 'not-allowed',
-                    opacity: minha ? 1 : 0.5,
-                    whiteSpace: 'nowrap',
-                  }}
-                  title="anexar imagem, vídeo ou áudio"
-                >
-                  {enviarAnexo.isPending ? '…' : '📎'}
+                <div className="campo-mensagem">
                   <input
-                    type="file"
-                    accept="image/*,video/*,audio/*"
-                    style={{ display: 'none' }}
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    placeholder={
+                      minha
+                        ? anexo
+                          ? 'legenda (opcional)'
+                          : 'responder…'
+                        : 'assuma a conversa para poder responder'
+                    }
                     disabled={!minha}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0]
-                      if (f) enviarAnexo.mutate({ file: f })
-                      e.target.value = ''
-                    }}
                   />
-                </label>
-                <Gravador
-                  disabled={!minha}
-                  enviando={enviarAnexo.isPending}
-                  onGravado={(file) => enviarAnexo.mutate({ file, kind: 'voice' })}
-                />
-                <button
-                  type="submit"
-                  disabled={!minha || (!reply && !anexo) || send.isPending}
-                >
-                  Enviar
-                </button>
+                  <label
+                    className={`chat-acao anexar${minha ? '' : ' desativado'}`}
+                    title="anexar imagem, vídeo ou áudio"
+                    aria-label="anexar imagem, vídeo ou áudio"
+                  >
+                    <Icon
+                      name={enviarAnexo.isPending ? 'spinner' : 'paperclip'}
+                      className={enviarAnexo.isPending ? 'state-spinner' : undefined}
+                    />
+                    <input
+                      type="file"
+                      accept="image/*,video/*,audio/*"
+                      disabled={!minha}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f) enviarAnexo.mutate({ file: f })
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {podeEnviar || !GRAVACAO_SUPORTADA ? (
+                  <button
+                    type="submit"
+                    className="chat-acao principal"
+                    disabled={!podeEnviar || send.isPending}
+                    aria-label="enviar mensagem"
+                    title="enviar mensagem"
+                  >
+                    <Icon
+                      name={send.isPending ? 'spinner' : 'send'}
+                      className={send.isPending ? 'state-spinner' : undefined}
+                    />
+                  </button>
+                ) : (
+                  <Gravador
+                    disabled={!minha}
+                    enviando={enviarAnexo.isPending}
+                    onGravado={(file) => enviarAnexo.mutate({ file, kind: 'voice' })}
+                  />
+                )}
               </form>
               {send.isError && <ErrorBox error={send.error} />}
               {enviarAnexo.isError && <ErrorBox error={enviarAnexo.error} />}

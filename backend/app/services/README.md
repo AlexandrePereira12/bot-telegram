@@ -68,6 +68,96 @@ sumiço silencioso que a mudança quer eliminar. Consequência de deploy: o volu
 continuar montado no momento do upgrade, e só pode sair do compose depois que a 0007 tiver rodado em
 todas as instalações.
 
+## Atendimento por IA (`ai_service.py`)
+
+**A IA entra no lugar da fila, não antes do operador.** Escolher "falar com atendente" leva ao estado
+`AI_SUPPORT`, onde o modelo do provedor configurado conversa normalmente. A pessoa assume quando o
+lead insiste em falar com gente.
+
+**O interruptor é a integração cadastrada, não uma variável de ambiente.** Sem linha ativa em
+`ai_integrations`, o atendimento por IA não existe para a instalação e o lead vai direto para a fila —
+o comportamento de sempre. `disponivel()` consulta o banco a cada mensagem em vez de cachear: cache
+aqui significaria a IA continuar respondendo depois de alguém desligar no painel, e o interruptor
+precisa ser imediato.
+
+**A chave de API é cifrada, não hasheada — e a diferença não é preciosismo.** Hash resolveria
+"ninguém lê", mas também impediria o bot de usar a chave: ele precisa dela em claro no momento da
+chamada. Então ela é cifrada com material derivado do `ENCRYPTION_KEY` (Fernet sobre SHA-256 do
+segredo do ambiente), e o que a tela mostra é uma máscara montada a partir de `api_key_hint`, que
+guarda só as pontas. Ver a chave inteira exige o banco **e** o segredo do servidor.
+
+**A chave mora no banco, e não no `.env`.** Trocar de chave é operação de quem administra, não de
+quem tem acesso ao servidor — e não deveria exigir deploy. Consequência assumida: o segredo entra no
+`pg_dump`, cifrado; um dump vazado sem o `ENCRYPTION_KEY` não entrega a chave.
+
+**Dois provedores porque o formato da chamada muda.** Gemini usa `contents`/`systemInstruction` com a
+chave em header `x-goog-api-key`; OpenRouter segue chat completions com `Authorization: Bearer`. A
+chave vai em header nos dois, nunca em query string — URL com segredo vaza em log de proxy e em
+histórico de navegador. A diferença fica isolada em duas funções; o resto do serviço não sabe qual
+provedor está ativo.
+
+**O teste de conexão existe para o erro aparecer no painel.** Sem ele, chave errada só se manifesta
+quando um lead fica sem resposta. O resultado (`last_checked_at`, `last_error`) fica na linha, então a
+tela mostra o último teste sem repetir a chamada — e sem gastar cota — a cada carregamento.
+
+**A ordem das checagens em `on_message` é regra de negócio.** `is_under_human_support` vem antes de
+tudo: com o gancho da IA acima daquele gate, o modelo responderia por cima do operador que já assumiu
+a conversa — sem erro, sem log, e o lead recebendo duas vozes. É a única linha do handler cuja
+posição tem efeito silencioso e caro, e existe teste fixando isso.
+
+**A saída passa pela mesma validação de compliance da escrita.** Texto com promessa de ganho não
+chega ao Telegram. Num funil de apostas, soltar um gerador de texto sem essa checagem seria trocar a
+rede de proteção por sorte. Violação **não escala** — o lead recebe a mensagem de indisponibilidade e
+o termo fica no log, que é onde se decide se o prompt precisa mudar. Escalar por violação seria punir
+o lead por um erro nosso, e ele não teria como entender o motivo.
+
+**Insistência tem evento próprio (`AI_HANDOFF_REQUESTED`), separado de `HUMAN_SUPPORT_REQUESTED`.**
+Escolher "falar com atendente" no menu é como se chega ao atendimento — contar isso como insistência
+faria a IA sair de cena antes de responder uma única vez. Só pedidos feitos **dentro** do atendimento
+contam, e o limiar é `AI_ESCALATE_AFTER_REQUESTS` (2 por padrão).
+
+**Quem decide sair da IA é o lead, não o modelo.** A detecção é por frase (`PEDIDOS_DE_HUMANO`), no
+nosso código: um gate que dependesse do julgamento do modelo estaria pedindo justamente à parte que o
+lead quer abandonar que reconheça a própria dispensa. O botão "Falar com uma pessoa" acompanha toda
+resposta, com callback próprio (`humano:pedir`) — reusar `interest:<key>` não funcionaria, porque o
+handler de qualificação descarta clique fora de `QUALIFICATION`/`INFORMATION` e o botão ficaria mudo.
+
+**Falha nunca prende o lead.** Timeout, 429 (comum em modelo gratuito) ou erro de rede caem no caminho
+de sempre: aviso curto e fila humana. O serviço nunca deixa exceção subir para o handler.
+
+**A base de conhecimento é o conteúdo cadastrado — e não só as respostas.** O prompt recebe a
+campanha de onde o lead veio, a mensagem de boas-vindas (onde o produto é apresentado), o menu
+completo e as respostas de cada opção. A primeira versão mandava só as respostas soltas: o modelo não
+sabia o nome da campanha, não tinha a apresentação e não conhecia o menu — então não conseguia dizer
+"posso te explicar o cash out". Editar uma etapa ou opção no painel muda o que a IA responde, sem
+tocar em código nem em prompt. Fora disso o modelo usa o conhecimento geral dele sobre o jogo, o que
+foi decisão explícita de quem pediu a feature.
+
+**O raciocínio do Gemini `flash` é desligado, e isso não é economia.** O `maxOutputTokens` do Gemini
+cobre raciocínio **e** texto no mesmo teto. Medindo a chamada real: 476 tokens gastos pensando para
+13 de resposta. Com o teto em 500, a resposta chegava vazia, o serviço tratava como falha e o lead ia
+para a fila sem entender por quê — o sintoma era "a IA não respondeu nada". `thinkingBudget: 0` só é
+enviado para modelos `flash`; no `pro` o mínimo é 128 e zero seria 400.
+
+**Falha de geração carrega o diagnóstico.** `ValueError` sozinho não diz se foi filtro de segurança,
+teto de tokens ou raciocínio comendo o orçamento. A mensagem leva `finishReason`, tokens de
+raciocínio e de saída, e isso vai para o log e para o metadata do evento `AI_FAILED` — foi assim que
+o caso acima virou diagnóstico em vez de suposição.
+
+**A IA não finge ser humana.** O tom é natural e ela não se anuncia a cada mensagem, mas perguntada
+diretamente, responde a verdade. A regra está no system prompt, não no código: é regra de conversa.
+
+**Dado sensível não passa pela IA por instrução do prompt.** O material da campanha fala de CPF,
+documento e selfie; o prompt proíbe pedir esses dados e manda oferecer transferência para uma pessoa
+quando o assunto for cadastro, saque travado ou conta bloqueada. Vale saber que endpoints gratuitos
+de LLM podem rotear para provedores que usam os dados da requisição — por isso a instrução existe, e
+por isso trocar de modelo é decisão de configuração, não de código.
+
+**`httpx`, sem SDK novo.** Já é dependência do projeto (o mesmo cliente do `notify_external`), e a API
+do OpenRouter é compatível com o formato de chat completions. O ID do modelo fica em variável de
+ambiente porque os modelos gratuitos entram e saem do catálogo — fixá-lo no código faria a feature
+quebrar sozinha quando o provedor aposentasse o modelo.
+
 ## Atendimento (`conversation_service.py`)
 
 **`ConversationNotFound` existe para a API poder responder 404.** Antes, "conversa inexistente" e

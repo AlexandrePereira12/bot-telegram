@@ -31,11 +31,14 @@ quebra o fluxo — a pessoa entra como orgânica e o funil segue.
 ### Conduz o funil como máquina de estados
 
 ```
-NEW → WELCOME → CONSENT → AGE_GATE → QUALIFICATION → INFORMATION ─┐
-                    │          │            │                     ├→ CONVERTED
-                    │          │            └→ HUMAN_SUPPORT ──────┘
+NEW → WELCOME → CONSENT → AGE_GATE → QUALIFICATION → INFORMATION ─────┐
+                    │          │            │                         ├→ CONVERTED
+                    │          │            └→ AI_SUPPORT → HUMAN_SUPPORT
                     └──────────┴────────────────→ EXIT (terminal)
 ```
+
+`AI_SUPPORT` existe separado de `HUMAN_SUPPORT` para a métrica distinguir o que a IA resolveu do que
+precisou de gente. Com o atendimento por IA desligado, o funil pula direto para `HUMAN_SUPPORT`.
 
 O estado vive no banco, nunca só na memória do processo: reiniciar o bot não perde o progresso de
 ninguém. As transições válidas são declaradas num único lugar, e sair de um estado terminal exige
@@ -54,6 +57,28 @@ código como último recurso: apagar tudo não deixa o bot mudo.
 Duas telas ficam de fora dessa flexibilidade de propósito — consentimento e verificação de idade.
 Elas têm efeito legal, e o aceite é auditado por versão dos termos: se o texto variasse por campanha,
 o registro deixaria de provar o que a pessoa aceitou.
+
+### Atende com IA antes de ocupar uma pessoa
+
+Quando o lead pede atendimento, quem responde primeiro é uma IA (OpenRouter, modelo configurável)
+conversando pelo Telegram com o conteúdo cadastrado da campanha como base. A pessoa entra quando o
+lead **insiste** em falar com gente — um botão "Falar com uma pessoa" acompanha toda resposta, e o
+segundo pedido tira a IA de cena.
+
+Três garantias valem mais que a resposta em si: a saída passa pela **mesma validação de compliance**
+da API, então promessa de ganho não chega ao Telegram; **falha do provedor nunca prende o lead**
+(timeout, cota estourada ou erro caem na fila humana, como antes); e a IA **não fala por cima do
+operador** — a checagem de conversa atribuída vem antes de tudo no handler.
+
+A chave de API é cadastrada em **Configurações** no painel (perfil ADMIN) e guardada **cifrada** no
+banco — não em variável de ambiente. Cifrada, e não hasheada, porque o bot precisa dela em claro para
+chamar o provedor; o que a tela exibe é uma máscara (`AIza••••••3f9K`), e ver a chave inteira exigiria
+o banco e o `ENCRYPTION_KEY` do servidor ao mesmo tempo. Sem integração ativa, o atendimento por IA
+não existe: o lead vai direto para a fila, como sempre foi.
+
+Dois provedores aceitos — Google Gemini e OpenRouter — porque o formato da chamada muda entre eles. A
+tela tem um botão de testar conexão, para chave errada aparecer ali e não quando um lead ficar sem
+resposta.
 
 ### Passa a conversa para uma pessoa quando precisa
 
@@ -111,9 +136,9 @@ E é o que torna as regras testáveis sem subir um bot.
 ```
 backend/app/
 ├── core/          configuração, banco, segurança, logging, enums
-├── models/        18 tabelas
+├── models/        19 tabelas
 ├── services/      funil, tracking, conversão, conteúdo, atendimento, compliance
-├── api/routes/    41 endpoints REST
+├── api/routes/    45 endpoints REST
 ├── bot/           handlers, teclados, middlewares — sem regra de negócio
 └── workers/       follow-up, envio, agregação
 ```
@@ -214,12 +239,13 @@ antes de escrever.
 
 ## Como a qualidade é verificada
 
-**171 testes** cobrindo o que quebraria em silêncio: age gate bloqueando reentrada, consentimento
+**191 testes** cobrindo o que quebraria em silêncio: age gate bloqueando reentrada, consentimento
 versionado com revogação, idempotência de conversão, RBAC negando escrita ao perfil errado,
 assinatura de webhook rejeitando replay e corpo adulterado, resolução de conteúdo por campanha,
 o ciclo de encerrar e reabrir um atendimento, a rota de mídia negando anexo de outra conversa ou de
-outro tenant, a detecção de formato separando M4A de MP4, e a conversão de uma gravação de navegador
-em OGG/Opus com o ffmpeg de verdade.
+outro tenant, a detecção de formato separando M4A de MP4, a conversão de uma gravação de navegador
+em OGG/Opus com o ffmpeg de verdade, e o atendimento por IA — que não fala por cima do operador, não
+deixa promessa de ganho sair e manda o lead para a fila quando o provedor falha.
 
 Boa parte roda **os handlers do bot de verdade**, com dublês no lugar da API do Telegram — testar só
 os serviços deixaria passar bugs no caminho que o usuário percorre.

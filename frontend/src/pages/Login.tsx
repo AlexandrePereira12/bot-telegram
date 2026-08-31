@@ -1,10 +1,40 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import QRCode from 'qrcode'
 
-import { ThemeToggle } from '../components'
+import { Icon, ThemeToggle } from '../components'
 import { confirm2FA, login, type EnrollmentPayload } from '../services/api'
+
+/** Casca visual comum às duas telas de login (credenciais e cadastro do 2FA):
+ *  painel de marca à esquerda (só aparece a partir de 900px — ver CSS) e o
+ *  cartão de formulário à direita. Existe para não duplicar o painel entre os
+ *  dois retornos de `Login()`, não para mudar nada do comportamento deles. */
+function LoginShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="login-wrap">
+      <ThemeToggle />
+      <aside className="login-visual" aria-hidden="true">
+        <div className="login-visual-content">
+          <span className="login-visual-mark">
+            <Icon name="analytics" />
+          </span>
+          <h2>Tráfego · Telegram</h2>
+          <p>
+            Painel de tráfego e atendimento: do clique no anúncio à conversa
+            encerrada, num só lugar.
+          </p>
+          <ul className="login-visual-points">
+            <li>Funil e campanhas em tempo real</li>
+            <li>Atendimento humano integrado ao bot</li>
+            <li>Métricas por campanha, anúncio e período</li>
+          </ul>
+        </div>
+      </aside>
+      <div className="login-form-area">{children}</div>
+    </div>
+  )
+}
 
 /** Só dígitos, no máximo 6 — impede colar aqui o segredo do autenticador. */
 function onlyCode(value: string): string {
@@ -84,8 +114,7 @@ export default function Login() {
   }
 
   return (
-    <div className="login-wrap">
-      <ThemeToggle />
+    <LoginShell>
       <form className="login-box" onSubmit={onLogin}>
         <p className="login-brand">Tráfego · Telegram</p>
         <h1>Entrar</h1>
@@ -138,7 +167,7 @@ export default function Login() {
           {busy ? 'entrando…' : 'Entrar'}
         </button>
       </form>
-    </div>
+    </LoginShell>
   )
 }
 
@@ -173,8 +202,7 @@ function Enrollment(props: EnrollmentProps) {
   }, [props.data.otpauth_uri])
 
   return (
-    <div className="login-wrap">
-      <ThemeToggle />
+    <LoginShell>
       <form
         className="login-box"
         style={{ width: 380 }}
@@ -287,6 +315,6 @@ function Enrollment(props: EnrollmentProps) {
           Voltar
         </button>
       </form>
-    </div>
+    </LoginShell>
   )
 }

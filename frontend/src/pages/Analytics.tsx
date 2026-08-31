@@ -75,6 +75,12 @@ export default function Analytics() {
         {funnel.data && (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={funnel.data}>
+              <defs>
+                <linearGradient id="gradBarraFunil" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={chart.serie1} stopOpacity={1} />
+                  <stop offset="100%" stopColor={chart.serie1} stopOpacity={0.55} />
+                </linearGradient>
+              </defs>
               <CartesianGrid stroke={chart.grid} vertical={false} />
               <XAxis
                 dataKey="step"
@@ -98,8 +104,8 @@ export default function Analytics() {
               <Bar
                 dataKey="count"
                 name="usuários"
-                fill={chart.serie1}
-                radius={[3, 3, 0, 0]}
+                fill="url(#gradBarraFunil)"
+                radius={[4, 4, 0, 0]}
                 maxBarSize={44}
               />
             </BarChart>
@@ -174,6 +180,16 @@ export default function Analytics() {
         {series.data && series.data.length > 0 ? (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={series.data}>
+              <defs>
+                <linearGradient id="gradBarraUsuarios" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={chart.serie1} stopOpacity={1} />
+                  <stop offset="100%" stopColor={chart.serie1} stopOpacity={0.55} />
+                </linearGradient>
+                <linearGradient id="gradBarraConversoes" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={chart.serie2} stopOpacity={1} />
+                  <stop offset="100%" stopColor={chart.serie2} stopOpacity={0.55} />
+                </linearGradient>
+              </defs>
               <CartesianGrid stroke={chart.grid} vertical={false} />
               <XAxis
                 dataKey="day"
@@ -197,15 +213,15 @@ export default function Analytics() {
               <Bar
                 dataKey="users"
                 name="usuários"
-                fill={chart.serie1}
-                radius={[3, 3, 0, 0]}
+                fill="url(#gradBarraUsuarios)"
+                radius={[4, 4, 0, 0]}
                 maxBarSize={28}
               />
               <Bar
                 dataKey="conversions"
                 name="conversões"
-                fill={chart.serie2}
-                radius={[3, 3, 0, 0]}
+                fill="url(#gradBarraConversoes)"
+                radius={[4, 4, 0, 0]}
                 maxBarSize={28}
               />
             </BarChart>

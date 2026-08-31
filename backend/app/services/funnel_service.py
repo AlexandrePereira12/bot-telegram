@@ -375,7 +375,22 @@ async def select_interest(
     )
 
     if option.target == OptionTarget.HUMAN_SUPPORT:
-        state, event = FunnelState.HUMAN_SUPPORT, EventType.HUMAN_SUPPORT_REQUESTED
+        # Com a IA ligada, pedir atendimento entra primeiro no AI_SUPPORT: e a
+        # IA que atende, e a fila humana passa a ser o passo seguinte, nao o
+        # primeiro. O evento continua sendo HUMAN_SUPPORT_REQUESTED porque e
+        # exatamente isso que o lead pediu — e e assim que a insistencia e
+        # contada depois.
+        from app.services import ai_service
+
+        if await ai_service.disponivel(session):
+            state = FunnelState.AI_SUPPORT
+            # Marca o inicio do ciclo de atendimento por IA. Alem da metrica,
+            # e o corte usado para contar insistencia: um atendimento reaberto
+            # nao herda os pedidos do ciclo anterior.
+            event = EventType.AI_SUPPORT_STARTED
+        else:
+            state = FunnelState.HUMAN_SUPPORT
+            event = EventType.HUMAN_SUPPORT_REQUESTED
     else:
         state, event = FunnelState.INFORMATION, EventType.FAQ_OPENED
 

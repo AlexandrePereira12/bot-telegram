@@ -51,9 +51,29 @@ INFORMATION = (
     "Se preferir falar com uma pessoa do time, e so tocar no botao abaixo."
 )
 
+AI_SUPPORT = (
+    "Certo, pode falar! Me conta o que voce precisa que eu ajudo por aqui.\n\n"
+    "Se preferir falar com alguem do time, e so pedir."
+)
+
 HUMAN_SUPPORT = (
     "Voce entrou na fila de atendimento. Uma pessoa do time responde por aqui "
     "assim que possivel."
+)
+
+#: Resposta ao primeiro toque em "falar com uma pessoa": o atendimento segue
+#: automatico, mas o clique precisa ter efeito visivel.
+AI_AINDA_ATENDENDO = (
+    "Posso tentar te ajudar por aqui mesmo — me conta o que voce precisa. "
+    "Se preferir, e so pedir de novo que eu passo para alguem do time."
+)
+
+#: Enviada quando a IA nao consegue responder (API fora, cota estourada,
+#: resposta recusada pela validacao de compliance). O lead nunca fica sem
+#: retorno por causa de falha nossa.
+AI_UNAVAILABLE = (
+    "Deixa eu chamar alguem do time para te ajudar com isso. Ja passei a sua "
+    "mensagem — e so aguardar aqui mesmo."
 )
 
 UNDER_HUMAN_SUPPORT = (

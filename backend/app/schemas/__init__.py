@@ -18,6 +18,7 @@ from pydantic import (
 )
 
 from app.core.enums import (
+    AiProvider,
     ConversationOutcome,
     ConversationStatus,
     EntityStatus,
@@ -430,6 +431,41 @@ class QualificationOptionOut(ORMModel):
     response_body: str | None = None
     response_media_id: int | None = None
     response_media_type: MediaType | None = None
+
+
+# ------------------------------------------------------------- integracao IA
+class AiIntegrationIn(BaseModel):
+    """Configuracao vinda do painel.
+
+    `api_key` opcional de proposito: numa integracao existente, vazio significa
+    "mantem a chave atual" — assim da para trocar o modelo ou desativar sem
+    digitar o segredo de novo, e sem a tela precisar te-lo em maos.
+    """
+
+    provider: AiProvider
+    model: str = Field(min_length=1, max_length=128)
+    api_key: str | None = Field(default=None, max_length=512)
+    is_active: bool = True
+
+
+class AiIntegrationOut(BaseModel):
+    """Estado da integracao para a tela. A chave sai apenas mascarada."""
+
+    configured: bool
+    provider: AiProvider | None = None
+    model: str | None = None
+    is_active: bool = False
+    api_key_masked: str | None = None
+    last_checked_at: datetime | None = None
+    last_error: str | None = None
+    updated_at: datetime | None = None
+
+
+class AiIntegrationTest(BaseModel):
+    ok: bool
+    detail: str
+    #: Trecho da resposta do provedor, quando o teste funciona.
+    sample: str | None = None
 
 
 class MediaUploadOut(BaseModel):

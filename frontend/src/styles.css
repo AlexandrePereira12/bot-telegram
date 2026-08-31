@@ -32,14 +32,22 @@
   --chart-1: #1f5f6b;
   --chart-2: #a86a1c;
 
+  /* Segunda cor de marca (o mesmo tom quente do chart-2), reservada para
+     acento decorativo — hoje só o painel visual do login. */
+  --accent-warm: #a86a1c;
+  --accent-warm-soft: #f1e4d2;
+
   /* No claro quem separa os níveis é a borda; o fundo dos painéis fica quase
      igual ao da página. No escuro é o contrário — ver bloco abaixo. */
   --panel-border: var(--border);
   --shadow: 0 1px 2px rgb(36 31 26 / 0.06);
+  --shadow-md: 0 4px 16px rgb(36 31 26 / 0.08);
+  --shadow-lg: 0 16px 40px rgb(36 31 26 / 0.14);
 
   --radius-sm: 4px;
   --radius: 6px;
   --radius-lg: 10px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   color-scheme: light;
 }
@@ -67,10 +75,15 @@
   --chart-1: #63b3c2;
   --chart-2: #d9a95c;
 
+  --accent-warm: #d9a95c;
+  --accent-warm-soft: #3a2f1c;
+
   /* No escuro o próprio fundo do painel já cria o degrau; borda por cima
      viraria contorno duplo. */
   --panel-border: transparent;
   --shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 6px 20px rgb(0 0 0 / 0.32);
+  --shadow-lg: 0 20px 48px rgb(0 0 0 / 0.5);
 
   color-scheme: dark;
 }
@@ -135,12 +148,41 @@ a:hover {
 }
 
 .brand {
+  display: flex;
+  align-items: center;
+  /* Respiro menor que o dos itens de navegação: com o botão de recolher na
+     mesma linha, 10px de cada lado empurravam "Telegram" para a segunda
+     linha. */
+  gap: 8px;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14.5px;
   letter-spacing: -0.01em;
   line-height: 1.25;
-  margin-bottom: 16px;
-  padding: 0 10px;
+  margin-bottom: 18px;
+  padding: 0 6px;
+}
+
+.brand-nome {
+  min-width: 0;
+}
+
+/* Marca: quadrado com leve gradiente de dois tons (accent + accent-warm) e um
+   glifo geométrico simples. Existe para o nome da marca parar de ser só texto
+   — o mesmo motivo por trás de qualquer wordmark ganhar um símbolo. */
+.brand-mark {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--accent), var(--accent-warm));
+}
+
+.brand-mark svg {
+  width: 15px;
+  height: 15px;
 }
 
 /* Quem está logado fica no topo, antes da navegação: é o primeiro dado que
@@ -166,11 +208,12 @@ a:hover {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: var(--accent);
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
   color: var(--accent-ink);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
+  box-shadow: 0 0 0 2px var(--surface-2);
 }
 
 .identity-text {
@@ -208,28 +251,46 @@ a:hover {
 }
 
 .nav-link {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 8px 10px 8px 13px;
   border-radius: var(--radius);
   color: var(--muted);
   font-weight: 500;
   border-left: 3px solid transparent;
-  transition: color 0.12s, background-color 0.12s;
+  transition: color 0.14s var(--ease), background-color 0.14s var(--ease),
+    transform 0.14s var(--ease);
+}
+
+.nav-link svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  opacity: 0.75;
+  transition: opacity 0.14s var(--ease);
 }
 
 .nav-link:hover {
   background: var(--surface-2);
   color: var(--text);
   text-decoration: none;
+  transform: translateX(1px);
 }
 
 /* Item ativo marcado pela barra à esquerda, não só por um retângulo de fundo:
-   fica legível mesmo quando o mouse está sobre outro item. */
+   fica legível mesmo quando o mouse está sobre outro item. O ícone acompanha
+   a cor do texto para não sobrar cinza num item que já está "aceso". */
 .nav-link.active {
   color: var(--text);
   font-weight: 600;
   border-left-color: var(--accent);
   background: var(--accent-soft);
+}
+
+.nav-link.active svg {
+  color: var(--accent);
+  opacity: 1;
 }
 
 .sidebar-footer {
@@ -245,6 +306,15 @@ a:hover {
 
 .sidebar-footer button {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.sidebar-footer button svg {
+  width: 14px;
+  height: 14px;
 }
 
 .content {
@@ -256,9 +326,9 @@ a:hover {
 /* --- tipografia --- */
 
 h1 {
-  font-size: 22px;
+  font-size: 23px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   margin: 0 0 2px;
 }
 
@@ -293,24 +363,32 @@ code,
 .card {
   background: var(--surface);
   border: 1px solid var(--panel-border);
+  border-top: 3px solid var(--border-strong);
   border-radius: var(--radius-lg);
   padding: 14px 16px 16px;
   box-shadow: var(--shadow);
+  transition: box-shadow 0.16s var(--ease), transform 0.16s var(--ease),
+    border-color 0.16s var(--ease);
 }
 
+/* Rótulo em caixa alta e espaçado: mesma linguagem do .group-title, para o
+   número ser lido como dado — não como legenda de parágrafo. */
 .card .label {
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .card .value {
-  font-size: 25px;
+  font-size: 27px;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .panel {
@@ -325,9 +403,18 @@ code,
   overflow-x: auto;
 }
 
-.panel h2 {
-  font-size: 14px;
+/* `.panel > h2` cobre o título direto que o componente `Panel` sempre
+   renderiza; `.panel-title` é para quando a mesma função de título precisa de
+   um wrapper ao redor (ex.: ao lado de um badge) e por isso deixa de ser
+   filho direto. Descendente puro (`.panel h2`) pegaria demais: telas como o
+   encerramento de atendimento têm um <h2> que é subtítulo de pergunta, não
+   título de seção, e não deve virar caixa alta. */
+.panel > h2,
+.panel-title {
+  font-size: 13.5px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   margin: 0 0 16px;
   color: var(--text);
 }
@@ -339,27 +426,48 @@ table {
   border-collapse: collapse;
 }
 
+/* Gutter simétrico (14px de cada lado) em vez de só padding-right: com o
+   antigo `padding-left: 0` geral, uma coluna .num (que zerava o próprio
+   padding-right para colar no fim) tocava o texto da coluna seguinte sem
+   nenhum espaço entre os dois — "CPA" + "Tokens" virava "CPATokens" na tela.
+   Primeira e última célula compensam para ficar rente à borda do painel. */
 th,
 td {
   text-align: left;
-  padding: 9px 12px 9px 0;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 
+th:first-child,
+td:first-child {
+  padding-left: 0;
+}
+
+th:last-child,
+td:last-child {
+  padding-right: 0;
+}
+
 th {
   color: var(--muted);
-  font-weight: 500;
-  font-size: 12.5px;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 thead th {
   border-bottom-color: var(--border-strong);
-  padding-bottom: 7px;
+  padding-bottom: 9px;
 }
 
 tbody tr:last-child > * {
   border-bottom: none;
+}
+
+tbody tr {
+  transition: background-color 0.1s var(--ease);
 }
 
 tbody tr:hover {
@@ -371,7 +479,6 @@ tbody tr:hover {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 13px;
-  padding-right: 0;
 }
 
 th.num {
@@ -381,7 +488,8 @@ th.num {
 /* --- badges --- */
 
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   padding: 1px 9px;
   border-radius: 999px;
   font-size: 11.5px;
@@ -390,6 +498,19 @@ th.num {
   color: var(--muted);
   background: var(--surface-2);
   border: 1px solid transparent;
+}
+
+/* Ponto antes do texto: o status vira um sinal reconhecível de longe (varrendo
+   a coluna com o olho), não só uma pílula colorida igual às outras. */
+.badge.ok::before,
+.badge.warn::before,
+.badge.danger::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .badge.ok {
@@ -421,12 +542,23 @@ button,
   font-size: 13px;
   line-height: 1.5;
   cursor: pointer;
-  transition: background-color 0.12s, border-color 0.12s;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1);
+  transition: background-color 0.14s var(--ease), border-color 0.14s var(--ease),
+    transform 0.08s var(--ease), box-shadow 0.14s var(--ease);
 }
 
 button:hover:not(:disabled),
 .btn:hover {
   background: var(--accent-hover);
+  box-shadow: var(--shadow);
+}
+
+/* Feedback tátil do clique: o botão "assenta" 1px, sem depender de cor pra
+   avisar que o clique registrou. */
+button:active:not(:disabled),
+.btn:active {
+  transform: translateY(1px);
+  box-shadow: none;
 }
 
 button.secondary,
@@ -434,16 +566,30 @@ button.secondary,
   background: transparent;
   color: var(--text);
   border-color: var(--border-strong);
+  box-shadow: none;
 }
 
 button.secondary:hover:not(:disabled),
 .btn.secondary:hover {
   background: var(--surface-2);
+  box-shadow: none;
 }
 
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  .btn {
+    transition: background-color 0.14s, border-color 0.14s;
+  }
+
+  button:active:not(:disabled),
+  .btn:active {
+    transform: none;
+  }
 }
 
 button.danger {
@@ -670,13 +816,56 @@ textarea::placeholder {
   margin: 8px 0;
 }
 
-/* --- login --- */
+/* --- estados: carregando, vazio, erro --- */
 
+.state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 6px 0;
+}
+
+.state svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.state.state-error {
+  color: var(--danger);
+}
+
+.state-spinner {
+  animation: girar 0.7s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state-spinner {
+    animation-duration: 1.6s;
+  }
+}
+
+/* --- login ---
+   Duas colunas a partir de 900px: painel de marca à esquerda, formulário à
+   direita — o mesmo padrão de login split-screen de produtos B2B sérios, em
+   vez do cartão flutuando sozinho no centro de uma página vazia. Abaixo de
+   900px o painel de marca some e sobra só o formulário centralizado (era o
+   layout único de antes). */
 .login-wrap {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
-  place-items: center;
-  padding: 24px;
+  /* minmax(0, …) e não `1fr` puro: `1fr` respeita o mínimo automático do
+     conteúdo, e o cartão de 360px mais o respiro da área somavam 408px —
+     resultado, rolagem horizontal em qualquer celular. */
+  grid-template-columns: minmax(0, 1fr);
   position: relative;
 }
 
@@ -684,6 +873,124 @@ textarea::placeholder {
   position: absolute;
   top: 20px;
   right: 20px;
+  z-index: 1;
+}
+
+.login-visual {
+  display: none;
+}
+
+.login-form-area {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+@media (min-width: 900px) {
+  .login-wrap {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .login-visual {
+    display: flex;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    padding: 56px;
+    background: linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--accent) 94%, black) 0%,
+      var(--accent) 55%,
+      var(--accent-warm) 130%
+    );
+    color: var(--accent-ink);
+  }
+
+  /* Duas manchas radiais sobrepostas: textura discreta no painel de marca sem
+     recorrer a imagem externa, glassmorphism ou ilustração de estoque. */
+  .login-visual::before,
+  .login-visual::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgb(255 255 255 / 0.16), transparent);
+  }
+
+  .login-visual::before {
+    width: 620px;
+    height: 620px;
+    top: -220px;
+    right: -200px;
+  }
+
+  .login-visual::after {
+    width: 420px;
+    height: 420px;
+    bottom: -180px;
+    left: -120px;
+    background: radial-gradient(closest-side, rgb(0 0 0 / 0.14), transparent);
+  }
+
+  .login-visual-content {
+    position: relative;
+    max-width: 380px;
+  }
+
+  .login-visual-mark {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: rgb(255 255 255 / 0.14);
+    border: 1px solid rgb(255 255 255 / 0.22);
+    margin-bottom: 22px;
+  }
+
+  .login-visual-mark svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .login-visual-content h2 {
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 10px;
+  }
+
+  .login-visual-content p {
+    margin: 0 0 22px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: rgb(255 255 255 / 0.86);
+  }
+
+  .login-visual-points {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    font-size: 13px;
+  }
+
+  .login-visual-points li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: rgb(255 255 255 / 0.92);
+  }
+
+  .login-visual-points li::before {
+    content: '';
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
 }
 
 .login-box {
@@ -693,7 +1000,7 @@ textarea::placeholder {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 28px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-md);
 }
 
 .login-box h1 {
@@ -713,7 +1020,7 @@ textarea::placeholder {
 
 .funnel-bar {
   height: 24px;
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
   border-radius: var(--radius-sm);
   min-width: 2px;
 }
@@ -747,13 +1054,23 @@ textarea::placeholder {
 }
 
 .bubble.bot,
-.bubble.operator {
+.bubble.operator,
+.bubble.ai {
   align-self: flex-end;
   border-bottom-right-radius: var(--radius-sm);
 }
 
 .bubble.operator {
   background: var(--accent-soft);
+}
+
+/* A IA sai do mesmo lado que o operador — para o lead as duas são "o
+   atendimento" — mas com cor própria e faixa lateral: quem assume a conversa
+   precisa distinguir, numa olhada, o que foi resposta automática do que uma
+   pessoa escreveu. */
+.bubble.ai {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+  border-right: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .bubble .meta {
@@ -795,14 +1112,14 @@ textarea::placeholder {
   scrollbar-color: var(--border-strong) transparent;
 }
 
-/* Muito estreito: o cabeçalho precisa caber numa linha só, senão sobram três
-   faixas antes do conteúdo. Some o que é redundante — o nome ao lado do avatar
-   e o rótulo do botão de tema, que o ícone já comunica. */
-@media (max-width: 560px) {
-  .identity-text {
-    display: none;
-  }
+/* Muito estreito: o cabeçalho precisa caber numa linha só. Some o rótulo do
+   botão de tema, que o ícone já comunica.
 
+   O nome ao lado do avatar também sumia aqui, de quando a navegação era uma
+   faixa no topo e cada pixel de altura contava. Na gaveta sobra espaço, e
+   esconder quem está logado num painel com cinco perfis de acesso é esconder
+   justamente o que se procura primeiro. */
+@media (max-width: 560px) {
   .toggle-label {
     display: none;
   }
@@ -810,89 +1127,311 @@ textarea::placeholder {
   .theme-toggle {
     padding: 6px 9px;
   }
+
+  .topbar .theme-toggle {
+    margin-left: auto;
+  }
 }
 
 /* --- telas estreitas --- */
+
+/* --- barra lateral recolhida (desktop) ---
+
+   Recolher é preferência de tela, guardada em localStorage: a tabela de leads
+   e o chat ganham a largura da barra sem perder a navegação, que continua
+   inteira em forma de ícones. O rótulo vai para o `title` — ícone sozinho e
+   sem nome é adivinhação. */
+
+.layout.compacta {
+  grid-template-columns: 64px 1fr;
+}
+
+.layout.compacta .sidebar {
+  padding: 22px 8px 16px;
+  align-items: stretch;
+}
+
+.layout.compacta .brand {
+  justify-content: center;
+  padding: 0;
+  gap: 0;
+}
+
+.layout.compacta .brand-nome,
+.layout.compacta .nav-label,
+.layout.compacta .identity-text,
+.layout.compacta .identity .badge {
+  display: none;
+}
+
+.layout.compacta .identity {
+  grid-template-columns: 1fr;
+  grid-template-areas: 'avatar';
+  justify-items: center;
+  padding: 8px 0;
+  background: none;
+}
+
+.layout.compacta .nav-link {
+  justify-content: center;
+  padding: 9px 0;
+  border-left-width: 0;
+  border-radius: var(--radius);
+}
+
+.layout.compacta .nav-link.active {
+  /* Sem a barra à esquerda (não há espaço), o fundo passa a ser o único
+     marcador do item ativo — por isso ele fica mais forte aqui. */
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.layout.compacta .nav-link:hover {
+  transform: none;
+}
+
+.layout.compacta .sidebar-footer {
+  flex-direction: column;
+  gap: 6px;
+}
+
+.layout.compacta .sidebar-footer button,
+.layout.compacta .theme-toggle {
+  width: 100%;
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.layout.compacta .toggle-label {
+  display: none;
+}
+
+/* Botão de recolher: visível o tempo todo, com moldura própria. Escondê-lo até
+   o hover deixava a função inencontrável — ninguém procura um controle que não
+   está na tela, e num painel de trabalho isso vale mais que a discrição. A
+   seta gira quando recolhida: ela indica para onde a ação leva, não o estado
+   atual. */
+.icon-button.recolher {
+  margin-left: auto;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  transition: background-color 0.14s var(--ease), color 0.14s var(--ease),
+    transform 0.2s var(--ease);
+}
+
+.icon-button.recolher:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.icon-button.recolher svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Recolhida, a barra tem 48px úteis: o botão desce para a linha de baixo em
+   vez de disputar espaço com a marca, e fica sempre visível — é o único
+   caminho de volta. */
+.layout.compacta .brand {
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.layout.compacta .icon-button.recolher {
+  flex-basis: 100%;
+  width: 100%;
+  margin: 8px 0 0;
+  transform: rotate(180deg);
+}
+
+/* Cabeçalho e fundo escuro existem só no celular. */
+.topbar,
+.menu-backdrop {
+  display: none;
+}
+
+@keyframes surgir {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Quem pediu menos animação no sistema recebe a gaveta sem deslize e o fundo
+   sem transição — a posição final é a mesma. */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .icon-button.recolher {
+    transition: none;
+  }
+
+  .menu-backdrop {
+    animation: none;
+  }
+}
+
+/* --- celular e tablet estreito ---
+
+   Aqui a barra deixa de ser coluna e vira gaveta: 232px fixos comeriam metade
+   da tela, e a versão anterior (barra no topo com todos os itens) empurrava o
+   conteúdo para baixo da dobra em telas pequenas. */
 
 @media (max-width: 860px) {
   .layout {
     grid-template-columns: 1fr;
   }
 
-  .sidebar {
-    position: static;
-    height: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    flex-direction: row;
-    flex-wrap: wrap;
+  .layout.compacta {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    display: flex;
     align-items: center;
-    padding: 12px 14px;
-    gap: 6px;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    font-size: 14px;
   }
 
-  .brand {
-    margin: 0 auto 0 0;
-    order: 0;
+  .topbar strong {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-right: auto;
   }
 
-  /* No topo, a navegação ocupa a segunda linha inteira e os controles de
-     sessão ficam à direita da marca. */
-  .nav {
-    width: 100%;
+  .topbar .icon-button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .topbar .icon-button svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+    width: 264px;
+    height: 100dvh;
+    padding: 18px 12px;
+    transform: translateX(-100%);
+    transition: transform 0.2s var(--ease);
+    box-shadow: 0 12px 40px rgb(0 0 0 / 0.28);
+    overflow-y: auto;
+  }
+
+  .layout.menu-aberto .sidebar {
+    transform: translateX(0);
+  }
+
+  /* Dentro da gaveta o rótulo volta sempre: espaço não falta, e "compacta" é
+     uma escolha de desktop que não faz sentido num menu que já está por cima
+     da tela. */
+  .layout.compacta .brand-nome,
+  .layout.compacta .nav-label,
+  .layout.compacta .identity-text,
+  .layout.compacta .identity .badge {
+    display: revert;
+  }
+
+  .layout.compacta .identity {
+    grid-template-columns: 32px 1fr;
+    grid-template-areas:
+      'avatar texto'
+      'perfil perfil';
+    justify-items: stretch;
+    padding: 10px;
+    background: var(--surface-2);
+  }
+
+  .layout.compacta .nav-link {
+    justify-content: flex-start;
+    padding: 10px 10px 10px 13px;
+    border-left-width: 3px;
+  }
+
+  .layout.compacta .sidebar-footer {
     flex-direction: row;
-    flex-wrap: wrap;
-    gap: 2px;
   }
 
-  .identity {
-    order: 1;
-    margin: 0 auto 0 0;
-    grid-template-columns: 28px auto;
-    grid-template-areas: 'avatar texto';
-    padding: 6px 10px 6px 6px;
-    background: none;
+  .layout.compacta .toggle-label {
+    display: revert;
   }
 
-  .identity .badge,
-  .identity-text span {
+  /* O botão de recolher não serve de nada com a gaveta; quem fecha é o X, o
+     ESC ou o toque fora. */
+  .icon-button.recolher,
+  .layout.compacta .icon-button.recolher {
     display: none;
   }
 
-  .avatar {
-    width: 28px;
-    height: 28px;
+  .layout.menu-aberto .menu-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border: none;
+    padding: 0;
+    background: rgb(0 0 0 / 0.45);
+    animation: surgir 0.16s var(--ease);
   }
 
+  /* Alvo de toque de 44px: o mínimo confortável no celular, e o que separa
+     "errei o botão" de "o app é travado". */
   .nav-link {
-    border-left: none;
-    border-bottom: 2px solid transparent;
-    padding: 6px 9px;
-  }
-
-  .nav-link.active {
-    border-left: none;
-    border-bottom-color: var(--accent);
-  }
-
-  .sidebar-footer {
-    order: 2;
-    margin: 0;
-    border-top: none;
-    padding-top: 0;
-    gap: 6px;
+    min-height: 44px;
   }
 
   .sidebar-footer button {
-    flex: 0 0 auto;
-  }
-
-  .nav {
-    order: 3;
+    min-height: 40px;
   }
 
   .content {
-    padding: 20px 16px 40px;
+    padding: 18px 14px 40px;
+  }
+}
+
+@media (max-width: 560px) {
+  .content {
+    padding: 14px 12px 32px;
+  }
+
+  .login-form-area {
+    padding: 16px;
+  }
+
+  .login-box {
+    padding: 22px 18px;
+  }
+
+  h1 {
+    font-size: 19px;
+  }
+
+  /* Tabela estreita demais para caber: rola dentro do painel em vez de
+     esticar a página inteira na horizontal. */
+  .panel table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
   }
 }
 
@@ -950,10 +1489,18 @@ a.card-link {
 a.card-link:hover {
   text-decoration: none;
   border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 a.card-link .value {
   color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a.card-link:hover {
+    transform: none;
+  }
 }
 
 /* --- período --- */
@@ -1251,15 +1798,109 @@ a.card-link .value {
   border-radius: 6px;
 }
 
+/* --- composição da mensagem ---
+
+   Formato de aplicativo de mensagem: campo arredondado com o clipe dentro, e
+   um único botão redondo à direita. Antes eram três botões retangulares
+   competindo pelo mesmo canto, o que no celular vira erro de alvo. */
+
+.chat-compositor {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.campo-mensagem {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.campo-mensagem input[type='text'],
+.campo-mensagem input:not([type]) {
+  width: 100%;
+  height: 40px;
+  border-radius: 999px;
+  padding: 0 44px 0 16px;
+}
+
+/* Botão redondo do chat: mesmo tamanho para clipe, microfone e enviar, para a
+   barra não pular de altura quando um vira o outro. */
+.chat-acao {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 0.14s var(--ease), color 0.14s var(--ease);
+}
+
+.chat-acao svg {
+  width: 19px;
+  height: 19px;
+}
+
+.chat-acao:hover:not(:disabled):not(.desativado) {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.chat-acao:disabled,
+.chat-acao.desativado {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* O clipe mora dentro do campo, como anexo em qualquer mensageiro. */
+.chat-acao.anexar {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: none;
+}
+
+.chat-acao.anexar input[type='file'] {
+  display: none;
+}
+
+.chat-acao.principal {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-ink);
+}
+
+.chat-acao.principal:hover:not(:disabled) {
+  background: var(--accent-hover);
+  color: var(--accent-ink);
+}
+
+.chat-acao.descartar:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.chat-erro {
+  font-size: 11px;
+  flex-basis: 100%;
+}
+
 /* --- gravação de áudio --- */
 
 .gravador {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  padding: 0 4px 0 0;
   white-space: nowrap;
 }
 
@@ -1349,4 +1990,99 @@ a.card-link .value {
 .toolbar.filters input,
 .toolbar.filters select {
   height: 34px;
+}
+
+/* --- chat em tela pequena ---
+
+   O chat é a tela que mais se usa fora da mesa: fila num celular, resposta no
+   caminho. As regras abaixo cuidam do que quebrava ali — bolha estreita
+   demais, alvo de toque pequeno e o teclado do iOS dando zoom no campo. */
+
+@media (max-width: 640px) {
+  .chat {
+    max-height: 60dvh;
+  }
+
+  .bubble {
+    max-width: 88%;
+    font-size: 13.5px;
+  }
+
+  .anexo-midia {
+    max-height: 200px;
+  }
+
+  .anexo-audio {
+    width: 100%;
+  }
+
+  /* 16px é o limiar abaixo do qual o Safari do iPhone dá zoom ao focar um
+     campo — e o zoom desalinha a tela inteira, não só o campo. */
+  .campo-mensagem input {
+    font-size: 16px;
+    height: 44px;
+  }
+
+  .chat-acao {
+    width: 44px;
+    height: 44px;
+  }
+
+  .chat-acao.anexar {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* A barra de ações do atendimento empilha em vez de espremer: com quatro
+     botões numa linha, cada um ficava com menos da metade do alvo mínimo. */
+  .toolbar {
+    gap: 6px;
+  }
+
+  .toolbar button,
+  .toolbar .btn {
+    flex: 1 1 auto;
+    min-height: 40px;
+    justify-content: center;
+  }
+
+  .close-form .motivo {
+    min-height: 32px;
+  }
+
+  .anexo-pendente {
+    gap: 6px;
+  }
+}
+
+/* --- configurações --- */
+
+.estado-integracao {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 0 16px;
+  font-size: 12.5px;
+}
+
+.estado-integracao code {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+.linha-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.linha-check input {
+  width: auto;
+  margin: 0;
 }

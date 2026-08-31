@@ -7,12 +7,14 @@ Regras aplicadas aqui (planejamento/regras.md):
 - IP sempre armazenado como hash, nunca em texto plano.
 """
 
+import base64
 import hashlib
 import hmac
 import secrets
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from typing import Any
 
 import jwt
@@ -138,6 +140,78 @@ def hash_ip(ip: str | None) -> str | None:
         return None
     salt = settings.encryption_key or settings.company_slug
     return hashlib.sha256(f"{salt}:{ip}".encode()).hexdigest()
+
+
+# ------------------------------------------------------------------- segredos
+#
+# Segredo de integracao (chave de API de provedor de IA) precisa VOLTAR ao
+# claro: o bot usa a chave para chamar o servico. Por isso e cifrado, e nao
+# hasheado — hash resolveria "ninguem le", mas tambem impediria a aplicacao de
+# usar a chave. O que o painel mostra e uma mascara, nunca o valor.
+
+
+def _fernet() -> Any:
+    """Cifrador derivado do ENCRYPTION_KEY.
+
+    A chave do Fernet precisa ter 32 bytes em base64 urlsafe; o valor do .env e
+    texto livre, entao passa por SHA-256 antes. Derivar em vez de exigir
+    formato especifico evita que uma instalacao existente precise trocar o
+    segredo para ganhar a funcionalidade.
+    """
+    from cryptography.fernet import Fernet
+
+    material = settings.encryption_key
+    if not material:
+        # Fallback para nao quebrar instalacao que subiu sem ENCRYPTION_KEY.
+        # Registrado porque a falha seguinte seria pessima de diagnosticar:
+        # trocar o JWT_SECRET (rotina de rotacao) tornaria ilegivel toda chave
+        # ja cifrada, e o sintoma apareceria como "a IA parou de responder".
+        material = settings.jwt_secret
+        if material:
+            _avisar_fallback()
+    if not material:
+        raise RuntimeError(
+            "ENCRYPTION_KEY ausente: sem ela nao ha como guardar segredo de "
+            "integracao com seguranca"
+        )
+    return Fernet(base64.urlsafe_b64encode(hashlib.sha256(material.encode()).digest()))
+
+
+@lru_cache(maxsize=1)
+def _avisar_fallback() -> None:
+    """Aviso emitido uma vez por processo, nao a cada segredo cifrado."""
+    from app.core.logging import get_logger
+
+    get_logger(__name__).warning(
+        "ENCRYPTION_KEY ausente: segredos de integracao estao cifrados com o "
+        "JWT_SECRET. Trocar o JWT_SECRET tornara as chaves ja guardadas "
+        "ilegiveis — defina ENCRYPTION_KEY.",
+        extra={"event": "ENCRYPTION_KEY_MISSING"},
+    )
+
+
+def encrypt_secret(value: str) -> str:
+    """Cifra um segredo para guardar no banco."""
+    return _fernet().encrypt(value.encode()).decode()
+
+
+def decrypt_secret(value: str) -> str:
+    """Recupera o segredo. Lanca se o ENCRYPTION_KEY nao for o mesmo da escrita."""
+    return _fernet().decrypt(value.encode()).decode()
+
+
+def mask_secret(value: str, visible: int = 4) -> str:
+    """Mascara para exibicao: prefixo curto, fim visivel, meio escondido.
+
+    Mostrar o comeco e o fim e o que permite a pessoa reconhecer *qual* chave
+    esta ali sem que a tela exponha o segredo — e o suficiente para conferir se
+    trocaram a chave por outra.
+    """
+    if not value:
+        return ""
+    if len(value) <= visible * 2:
+        return "•" * len(value)
+    return f"{value[:visible]}{'•' * 8}{value[-visible:]}"
 
 
 def generate_tracking_token() -> str:

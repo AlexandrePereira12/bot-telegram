@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
   Legend,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -167,7 +167,21 @@ export default function Dashboard() {
         )}
         {series.data && series.data.length > 0 && (
           <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={series.data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+            <AreaChart data={series.data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              {/* Preenchimento em degradê até transparente: a mesma série em
+                  linha pura, sem área, é o traço mais "genérico" que um
+                  gráfico de tendência pode ter — a área dá peso visual ao
+                  volume, não só à direção. */}
+              <defs>
+                <linearGradient id="gradUsuarios" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={chart.serie1} stopOpacity={0.32} />
+                  <stop offset="100%" stopColor={chart.serie1} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradConversoes" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={chart.serie2} stopOpacity={0.28} />
+                  <stop offset="100%" stopColor={chart.serie2} stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <CartesianGrid stroke={chart.grid} vertical={false} />
               <XAxis
                 dataKey="day"
@@ -196,23 +210,27 @@ export default function Dashboard() {
                 iconType="plainline"
                 wrapperStyle={{ fontSize: 12, color: chart.axis }}
               />
-              <Line
+              <Area
                 type="monotone"
                 dataKey="users"
                 name="usuários"
                 stroke={chart.serie1}
-                strokeWidth={2}
+                strokeWidth={2.25}
+                fill="url(#gradUsuarios)"
                 dot={false}
+                activeDot={{ r: 4 }}
               />
-              <Line
+              <Area
                 type="monotone"
                 dataKey="conversions"
                 name="conversões"
                 stroke={chart.serie2}
-                strokeWidth={2}
+                strokeWidth={2.25}
+                fill="url(#gradConversoes)"
                 dot={false}
+                activeDot={{ r: 4 }}
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         )}
       </Panel>

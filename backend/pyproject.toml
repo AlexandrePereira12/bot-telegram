@@ -15,6 +15,10 @@ dependencies = [
     "redis>=5.2.0",
     "arq>=0.26.0",
     "pwdlib[argon2]>=0.2.1",
+    # Cifra a chave de API da integracao de IA guardada no banco. Precisa ser
+    # reversivel (o bot usa a chave para chamar o provedor), entao hash nao
+    # serve — o segredo e cifrado com material derivado do ENCRYPTION_KEY.
+    "cryptography>=44.0.0",
     "pyjwt>=2.10.0",
     "pyotp>=2.9.0",
     "httpx>=0.28.0",

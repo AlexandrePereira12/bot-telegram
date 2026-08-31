@@ -126,7 +126,7 @@ export interface Message {
   media_id: number | null
   media_type: MediaType | null
   direction: 'inbound' | 'outbound'
-  sender_type: 'bot' | 'user' | 'operator'
+  sender_type: 'bot' | 'user' | 'operator' | 'ai'
   sender_id: number | null
   message_type: string
   content: string | null
@@ -153,6 +153,7 @@ export type FunnelStepKey =
   | 'AGE_REJECTED'
   | 'QUALIFICATION'
   | 'INFORMATION'
+  | 'AI_SUPPORT'
   | 'HUMAN_SUPPORT'
   | 'FOLLOWUP'
 
@@ -184,4 +185,24 @@ export interface MediaUpload {
   media_id: number
   media_type: MediaType
   size_bytes: number
+}
+
+export type AiProvider = 'GEMINI' | 'OPENROUTER'
+
+/** Estado da integração de IA. A chave nunca vem — só `api_key_masked`. */
+export interface AiIntegration {
+  configured: boolean
+  provider: AiProvider | null
+  model: string | null
+  is_active: boolean
+  api_key_masked: string | null
+  last_checked_at: string | null
+  last_error: string | null
+  updated_at: string | null
+}
+
+export interface AiIntegrationTest {
+  ok: boolean
+  detail: string
+  sample: string | null
 }

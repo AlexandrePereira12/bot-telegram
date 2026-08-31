@@ -14,6 +14,9 @@ class FunnelState(StrEnum):
     AGE_GATE = "AGE_GATE"
     QUALIFICATION = "QUALIFICATION"
     INFORMATION = "INFORMATION"
+    #: Atendimento por IA. Existe separado de HUMAN_SUPPORT para a metrica
+    #: distinguir o que a IA resolveu do que precisou de gente.
+    AI_SUPPORT = "AI_SUPPORT"
     HUMAN_SUPPORT = "HUMAN_SUPPORT"
     CONVERTED = "CONVERTED"
     EXIT = "EXIT"
@@ -28,11 +31,21 @@ ALLOWED_TRANSITIONS: dict[FunnelState, set[FunnelState]] = {
     FunnelState.AGE_GATE: {FunnelState.QUALIFICATION, FunnelState.EXIT},
     FunnelState.QUALIFICATION: {
         FunnelState.INFORMATION,
+        FunnelState.AI_SUPPORT,
         FunnelState.HUMAN_SUPPORT,
         FunnelState.CONVERTED,
         FunnelState.EXIT,
     },
     FunnelState.INFORMATION: {
+        FunnelState.AI_SUPPORT,
+        FunnelState.HUMAN_SUPPORT,
+        FunnelState.CONVERTED,
+        FunnelState.EXIT,
+    },
+    #: A IA atende ate o lead insistir por gente — dai o caminho para
+    #: HUMAN_SUPPORT. Voltar a INFORMATION mantem o menu utilizavel.
+    FunnelState.AI_SUPPORT: {
+        FunnelState.INFORMATION,
         FunnelState.HUMAN_SUPPORT,
         FunnelState.CONVERTED,
         FunnelState.EXIT,
@@ -62,6 +75,14 @@ class EventType(StrEnum):
     QUALIFICATION_COMPLETED = "QUALIFICATION_COMPLETED"
     INTEREST_SELECTED = "INTEREST_SELECTED"
     FAQ_OPENED = "FAQ_OPENED"
+    AI_SUPPORT_STARTED = "AI_SUPPORT_STARTED"
+    AI_REPLIED = "AI_REPLIED"
+    AI_FAILED = "AI_FAILED"
+    #: Pedido de atendente feito DURANTE o atendimento por IA. Separado de
+    #: HUMAN_SUPPORT_REQUESTED (que marca a entrada no atendimento) porque e
+    #: so este que conta como insistencia — escolher "falar com atendente" no
+    #: menu e como se chega aqui, nao um sinal de que a IA falhou.
+    AI_HANDOFF_REQUESTED = "AI_HANDOFF_REQUESTED"
     HUMAN_SUPPORT_REQUESTED = "HUMAN_SUPPORT_REQUESTED"
     HUMAN_SUPPORT_ASSIGNED = "HUMAN_SUPPORT_ASSIGNED"
     HUMAN_SUPPORT_RELEASED = "HUMAN_SUPPORT_RELEASED"
@@ -122,6 +143,10 @@ class SenderType(StrEnum):
     BOT = "bot"
     USER = "user"
     OPERATOR = "operator"
+    #: Resposta gerada por IA no atendimento. Separada de BOT porque bot e
+    #: texto fixo do funil, e o painel precisa mostrar a diferenca para quem
+    #: assume a conversa depois.
+    AI = "ai"
 
 
 class EntityStatus(StrEnum):
@@ -140,6 +165,9 @@ class FunnelStep(StrEnum):
     AGE_REJECTED = "AGE_REJECTED"
     QUALIFICATION = "QUALIFICATION"
     INFORMATION = "INFORMATION"
+    #: Primeira mensagem do atendimento por IA — a que abre a conversa antes de
+    #: o modelo assumir. Editavel por campanha como qualquer outra etapa.
+    AI_SUPPORT = "AI_SUPPORT"
     HUMAN_SUPPORT = "HUMAN_SUPPORT"
     FOLLOWUP = "FOLLOWUP"
 
@@ -164,6 +192,18 @@ class OptionTarget(StrEnum):
 
     INFORMATION = "INFORMATION"
     HUMAN_SUPPORT = "HUMAN_SUPPORT"
+
+
+class AiProvider(StrEnum):
+    """Provedor da integracao de IA configurada no painel.
+
+    Dois, e nao um, porque o formato da chamada muda: o Gemini tem endpoint e
+    corpo proprios, o OpenRouter segue o formato de chat completions. Quem
+    administra escolhe na tela conforme a chave que tem em maos.
+    """
+
+    GEMINI = "GEMINI"
+    OPENROUTER = "OPENROUTER"
 
 
 class MediaType(StrEnum):

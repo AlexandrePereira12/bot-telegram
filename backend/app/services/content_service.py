@@ -57,6 +57,7 @@ def _fallback(step: FunnelStep) -> str:
         FunnelStep.AGE_REJECTED: texts.AGE_REJECTED,
         FunnelStep.QUALIFICATION: texts.QUALIFICATION,
         FunnelStep.INFORMATION: texts.INFORMATION,
+        FunnelStep.AI_SUPPORT: texts.AI_SUPPORT,
         FunnelStep.HUMAN_SUPPORT: texts.HUMAN_SUPPORT,
         FunnelStep.FOLLOWUP: texts.FOLLOWUP,
     }

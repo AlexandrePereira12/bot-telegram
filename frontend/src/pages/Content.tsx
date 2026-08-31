@@ -13,6 +13,7 @@ const STEP_LABEL: Record<string, string> = {
   AGE_REJECTED: 'Reprovado na idade',
   QUALIFICATION: 'Pergunta de qualificação',
   INFORMATION: 'Resposta de informação',
+  AI_SUPPORT: 'Abertura do atendimento por IA',
   HUMAN_SUPPORT: 'Entrou na fila de atendimento',
   FOLLOWUP: 'Mensagem de retomada',
 }
@@ -194,7 +195,9 @@ function StepEditor({
           marginBottom: 10,
         }}
       >
-        <h2 style={{ margin: 0 }}>{STEP_LABEL[step.step] ?? step.step}</h2>
+        <h2 className="panel-title" style={{ margin: 0 }}>
+          {STEP_LABEL[step.step] ?? step.step}
+        </h2>
         <span className={`badge ${badge.classe}`}>{badge.texto}</span>
       </div>
 

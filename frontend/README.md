@@ -53,6 +53,115 @@ O QR code do cadastro de 2FA é a exceção deliberada — módulos escuros sobr
 moldura branca fixa, independente do tema, porque é o contraste que o leitor
 do celular espera.
 
+### Sistema de ícones
+
+`Icon` (`components/index.tsx`) é um conjunto próprio de ícones em SVG inline
+— mesmo padrão que o `ThemeToggle` já usava antes de existir esse componente
+— não uma biblioteca externa. Existe para a navegação parar de ser só texto:
+sidebar sem nenhum símbolo ao lado do nome das telas foi o maior sinal de
+"rascunho" apontado na revisão visual. Cada ícone é decorativo por padrão
+(`aria-hidden`); quem carrega a informação para leitor de tela continua sendo
+o texto ao lado.
+
+Os ícones do chat (`paperclip`, `mic`, `send`, `trash`, `stop`) seguem de
+propósito a silhueta que todo aplicativo de mensagem usa: ali a familiaridade
+vale mais que originalidade — quem abre a conversa precisa reconhecer "anexar"
+e "gravar" sem ler nada. Nesses botões o ícone é o único conteúdo, então cada
+um leva `aria-label` e `title`, ao contrário dos ícones da navegação.
+
+### Cartão, tabela e badge — acentos que a tela ganhou
+
+- **`.card`** ganhou uma borda de 3px no topo. Neutra por padrão
+  (`--border-strong`); as classes de tom (`.ok`/`.warn`/`.danger`, já
+  existentes) recolorem essa borda inteira — é o mesmo mecanismo de antes,
+  só que agora o resultado é uma faixa visível, não só uma borda fina cinza.
+  Cartão clicável (`.card-link`) ganhou elevação no hover.
+- **Tabelas tinham um bug de espaçamento**: o modelo antigo zerava
+  `padding-left` em toda célula e tirava a folga de uma coluna `.num` do lado
+  direito — quando uma coluna numérica vinha seguida de uma coluna de texto
+  (`CPA` + `Tokens`, em Campanhas), as duas colavam na tela como
+  `CPATokens`, sem espaço nenhum entre elas. O gutter agora é simétrico
+  (14px dos dois lados), com a primeira e a última célula compensando para
+  ficar rente à borda do painel — mesmo efeito visual de antes, sem colar
+  texto de colunas vizinhas. Cabeçalho de tabela também virou caixa alta
+  pequena, no mesmo padrão do `.group-title` do Dashboard.
+- **Badge de status** ganhou um ponto colorido antes do texto
+  (`.badge.ok/.warn/.danger::before`) — o status vira um sinal que se
+  reconhece varrendo a coluna com o olho, não só mais uma pílula.
+
+Título de painel (`.panel > h2`) também virou caixa alta pequena. É filho
+direto de propósito: um `<h2>` mais fundo no conteúdo — caso do "Como
+terminou o atendimento?" em Conversas — é subtítulo de pergunta, não título
+de seção, e não deveria virar caixa alta. Quando o título precisa de um
+wrapper ao redor (por exemplo ao lado de um badge, em Content.tsx), ele
+recebe a classe `.panel-title` para continuar com o mesmo estilo.
+
+### Login
+
+Layout de duas colunas a partir de 900px: painel de marca à esquerda,
+formulário à direita — abaixo disso o painel de marca some (`display: none`)
+e sobra só o cartão centralizado, que era o único layout que existia antes.
+O painel usa gradiente e duas manchas radiais via CSS puro (sem imagem
+externa, sem glassmorphism) nas cores da marca. `LoginShell`
+(`pages/Login.tsx`) existe só para não duplicar esse painel entre a tela de
+login e a de cadastro do 2FA — nenhuma mudança de comportamento em nenhuma
+das duas.
+
+### Barra lateral: recolhível no desktop, gaveta no celular
+
+São duas coisas diferentes com aparência parecida, e tratá-las como uma só era
+o que quebrava a tela pequena.
+
+**No desktop** a barra recolhe para 64px e mostra só os ícones; a preferência
+fica em `localStorage` (`tb_sidebar_compacta`), porque é escolha de tela e não
+de sessão — quem recolheu quer recolhido amanhã. O rótulo de cada item passa a
+viver no `title`: ícone sozinho, sem nome, é adivinhação.
+
+O botão de recolher fica visível o tempo todo, com moldura própria. A primeira
+versão o escondia até o ponteiro chegar na barra, por discrição; o efeito foi
+tornar a função inencontrável — ninguém procura um controle que não está na
+tela. Recolhida, ele ocupa a linha inteira abaixo da marca (48px úteis não
+comportam os dois lado a lado) e a seta gira: ela aponta para onde a ação leva,
+não para o estado atual.
+
+**No celular** (≤860px) a barra vira gaveta sobre o conteúdo, aberta pelo
+cabeçalho que só existe nessa largura, e sempre começa fechada. Fecha no toque
+fora, no ESC e ao navegar. A versão anterior — barra no topo com os oito itens —
+empurrava o conteúdo para baixo da dobra. Dentro da gaveta o modo compacto é
+ignorado: espaço não falta ali, e "recolhido" é uma decisão de desktop.
+
+### Composição da mensagem (`pages/Conversations.tsx`)
+
+Formato de aplicativo de mensagem, porque é o vocabulário que quem atende já
+tem: campo arredondado com o clipe **dentro**, e um único botão redondo à
+direita que é microfone enquanto não há nada para enviar e vira avião assim que
+há. Antes eram três botões retangulares disputando o mesmo canto — no celular,
+isso é erro de alvo.
+
+Durante a gravação, a ordem é a mesma dos mensageiros: descartar à esquerda,
+tempo no meio, confirmar à direita. É onde a mão já procura.
+
+Navegador sem `MediaRecorder` (ou página sem HTTPS, onde `getUserMedia` não
+existe) não ganha um microfone que falha ao clicar: o lugar fica com o botão de
+enviar desabilitado.
+
+### Alvos de toque e o zoom do iOS
+
+No celular os botões do chat vão a 44px e o campo de texto a `font-size: 16px`.
+O tamanho não é estética: abaixo de 16px o Safari do iPhone dá zoom ao focar o
+campo, e o zoom desalinha a tela inteira, não só o campo.
+
+Tabela estreita demais rola dentro do painel (`overflow-x`), em vez de esticar a
+página na horizontal.
+
+### `minmax(0, 1fr)` no login
+
+O grid do login usava `1fr`, que respeita o mínimo automático do conteúdo: o
+cartão de 360px mais o respiro da área somavam 408px e produziam rolagem
+horizontal em qualquer celular. `minmax(0, 1fr)` deixa a coluna encolher.
+A verificação que pega isso é medir `scrollWidth - clientWidth` a 390px de
+largura — hoje zero em todas as telas conferidas.
+
 ## Telas com regra própria
 
 ### Usuários (`src/pages/Operators.tsx`)

@@ -59,6 +59,27 @@ class Settings(BaseSettings):
 
     n8n_webhook_url: str = ""
 
+    # --------------------------------------------------------- atendimento IA
+    #
+    # A chave de API NAO mora aqui: ela e cadastrada pelo painel e guardada
+    # cifrada no banco (`ai_integrations`). Sem integracao ativa, o atendimento
+    # por IA nao existe e o lead vai direto para a fila humana. O que sobra no
+    # ambiente sao os limites operacionais e os endereços dos provedores.
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    #: Teto de espera por resposta. Estourou, o lead vai para a fila humana em
+    #: vez de ficar olhando para o vazio.
+    ai_timeout_seconds: float = 20.0
+    #: Teto de saida por resposta. Cobre raciocinio + texto nos modelos que
+    #: pensam antes de responder — apertado demais, a resposta chega vazia.
+    ai_max_tokens: int = 800
+    #: Mensagens anteriores enviadas como contexto. Mais historico custa mais
+    #: token por chamada e, em modelo gratuito, aumenta a chance de 429.
+    ai_history_messages: int = 12
+    #: Quantos pedidos de atendente humano ate a IA sair de cena. O primeiro e
+    #: como o lead entrou aqui; o segundo e insistencia.
+    ai_escalate_after_requests: int = 2
+
     #: Legado: caminho do volume que guardava a midia antes dela ir para o
     #: banco. Continua aqui porque a migration 0007 le esses arquivos para
     #: importar; nenhum codigo de runtime escreve ou le do disco.

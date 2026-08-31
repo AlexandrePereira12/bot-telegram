@@ -16,6 +16,7 @@ from app.api.routes import (
     health,
     leads,
     operators,
+    settings_ai,
     webhooks,
 )
 from app.core.config import settings
@@ -119,6 +120,7 @@ app.include_router(leads.router, prefix=API_PREFIX)
 app.include_router(conversations.router, prefix=API_PREFIX)
 app.include_router(analytics.router, prefix=API_PREFIX)
 app.include_router(operators.router, prefix=API_PREFIX)
+app.include_router(settings_ai.router, prefix=API_PREFIX)
 app.include_router(webhooks.router, prefix=API_PREFIX)
 
 
